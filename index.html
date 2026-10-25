@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f4f5f7">
+  <meta name="description" content="Трекер личных финансов: счета, операции и три отчёта. Данные хранятся в этом браузере.">
+  <title>Обзор · Финансы</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+  <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <button class="icon-btn" id="back-btn" type="button" hidden aria-label="Назад">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <h1 class="app-header__title" id="screen-title" tabindex="-1">Обзор</h1>
+      <span class="app-header__spacer" aria-hidden="true"></span>
+    </header>
+
+    <main id="app">
+      <!-- Обзор -->
+      <section class="screen" id="screen-dashboard" data-screen="dashboard">
+        <div class="card card--total">
+          <span class="card__label">Всего на счетах</span>
+          <strong class="card__amount" id="dash-total">0 ₽</strong>
+          <div class="split">
+            <div class="split__item">
+              <span class="split__label">Доходы за месяц</span>
+              <span class="split__value" id="dash-income">—</span>
+            </div>
+            <div class="split__item">
+              <span class="split__label">Расходы за месяц</span>
+              <span class="split__value" id="dash-expense">—</span>
+            </div>
+          </div>
+        </div>
+
+        <section class="month-switch" aria-label="Месяц обзора">
+          <button class="icon-btn" id="dash-prev-month" type="button" aria-label="Предыдущий месяц">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+          <div class="month-switch__center">
+            <span class="month-switch__label" id="dash-month" aria-live="polite"></span>
+            <button class="month-switch__current" id="dash-current-month" type="button" hidden>Текущий</button>
+          </div>
+          <button class="icon-btn" id="dash-next-month" type="button" aria-label="Следующий месяц">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+          </button>
+        </section>
+
+        <section class="block">
+          <div class="block__head"><h2>Счета</h2></div>
+          <ul class="list" id="dash-accounts"></ul>
+        </section>
+
+        <section class="block">
+          <div class="block__head">
+            <h2 id="dash-recent-title">Последние операции</h2>
+            <a class="block__link" id="dash-all-transactions" href="#/transactions" aria-label="Все операции">Все</a>
+          </div>
+          <ul class="list" id="dash-recent"></ul>
+        </section>
+      </section>
+
+      <!-- Журнал операций -->
+      <section class="screen" id="screen-transactions" data-screen="transactions" hidden>
+        <section class="month-switch" aria-label="Месяц операций">
+          <button class="icon-btn" id="op-prev-month" type="button" aria-label="Предыдущий месяц">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+          <div class="month-switch__center">
+            <span class="month-switch__label" id="op-month" aria-live="polite"></span>
+            <button class="month-switch__current" id="op-current-month" type="button" hidden>Текущий</button>
+          </div>
+          <button class="icon-btn" id="op-next-month" type="button" aria-label="Следующий месяц">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+          </button>
+        </section>
+
+        <section class="card filters">
+          <div class="chips" id="op-type-filter" role="group" aria-label="Тип операций">
+            <button class="chip" type="button" data-type="all" aria-pressed="true">Все</button>
+            <button class="chip" type="button" data-type="expense" aria-pressed="false">Расходы</button>
+            <button class="chip" type="button" data-type="income" aria-pressed="false">Доходы</button>
+            <button class="chip" type="button" data-type="transfer" aria-pressed="false">Переводы</button>
+          </div>
+
+          <div class="filters__grid">
+            <label class="field">
+              <span class="field__label">Счёт</span>
+              <select id="op-account-filter"></select>
+            </label>
+            <label class="field">
+              <span class="field__label">Категория</span>
+              <select id="op-category-filter"></select>
+            </label>
+            <label class="field filters__wide">
+              <span class="field__label">Поиск</span>
+              <input id="op-search" type="search" inputmode="search"
+                     autocomplete="off" placeholder="Заметка, категория, счёт">
+            </label>
+          </div>
+
+          <button class="btn btn--tiny filters__reset" id="op-reset-filters" type="button" hidden>
+            Сбросить фильтры
+          </button>
+        </section>
+
+        <p class="journal__count" id="op-count" aria-live="polite"></p>
+
+        <section class="block">
+          <ul class="list" id="op-list"></ul>
+        </section>
+      </section>
+
+      <!-- Отчёты -->
+      <section class="screen" id="screen-reports" data-screen="reports" hidden>
+        <div class="segmented segmented--links" id="report-tabs" role="tablist" aria-label="Вид отчёта">
+          <a class="segmented__btn" href="#/reports/balance" data-report="balance" role="tab">Баланс</a>
+          <a class="segmented__btn" href="#/reports/income" data-report="income" role="tab">P&amp;L</a>
+          <a class="segmented__btn" href="#/reports/cashflow" data-report="cashflow" role="tab">ДДС</a>
+        </div>
+
+        <div class="period">
+          <div class="chips" id="period-chips">
+            <button class="chip" type="button" data-period="month" aria-pressed="true">Месяц</button>
+            <button class="chip" type="button" data-period="quarter" aria-pressed="false">Квартал</button>
+            <button class="chip" type="button" data-period="year" aria-pressed="false">Год</button>
+            <button class="chip" type="button" data-period="custom" aria-pressed="false">Период</button>
+          </div>
+          <div class="period__custom" id="period-custom" hidden>
+            <label class="period__field">
+              <span>С</span>
+              <input id="period-from" type="date">
+            </label>
+            <label class="period__field">
+              <span>По</span>
+              <input id="period-to" type="date">
+            </label>
+          </div>
+          <p class="period__label" id="period-label"></p>
+        </div>
+
+        <div id="report-body" class="report"></div>
+      </section>
+
+      <!-- Настройки -->
+      <section class="screen" id="screen-settings" data-screen="settings" hidden>
+        <section class="card">
+          <h2>Основное</h2>
+          <label class="field">
+            <span class="field__label">Валюта</span>
+            <select id="set-currency">
+              <option value="RUB">₽ — российский рубль</option>
+              <option value="USD">$ — доллар США</option>
+              <option value="EUR">€ — евро</option>
+              <option value="KZT">₸ — тенге</option>
+              <option value="BYN">Br — белорусский рубль</option>
+            </select>
+          </label>
+          <p class="hint">Меняет только отображение: суммы не конвертируются.</p>
+          <label class="field">
+            <span class="field__label">Тема</span>
+            <select id="set-theme">
+              <option value="system">Как в системе</option>
+              <option value="light">Светлая</option>
+              <option value="dark">Тёмная</option>
+            </select>
+          </label>
+        </section>
+
+        <section class="card">
+          <h2>Счета</h2>
+          <ul class="list list--compact" id="set-accounts"></ul>
+          <p class="hint">Нажмите на счёт, чтобы изменить. Удалить можно только счёт без операций; остаток при удалении списывается.</p>
+          <p class="account-form__mode" id="account-form-mode" hidden></p>
+          <form class="inline-form" id="account-form">
+            <input id="account-name" class="inline-form__wide" type="text" maxlength="40"
+                   placeholder="Название, например «Карта»" required>
+            <select id="account-kind" aria-label="Тип счёта">
+              <option value="cash">Наличные</option>
+              <option value="card">Карта</option>
+              <option value="bank">Банковский счёт</option>
+              <option value="savings">Накопления</option>
+            </select>
+            <input id="account-opening" type="text" inputmode="decimal"
+                   placeholder="Остаток" aria-label="Начальный остаток">
+            <button class="btn inline-form__wide" id="account-submit" type="submit">Добавить счёт</button>
+            <button class="btn" id="account-cancel" type="button" hidden>Отмена</button>
+          </form>
+        </section>
+
+        <section class="card">
+          <h2>Категории</h2>
+          <ul class="list list--compact" id="set-categories"></ul>
+          <form class="inline-form" id="category-form">
+            <input id="category-name" class="inline-form__wide" type="text" maxlength="30"
+                   placeholder="Название категории" required>
+            <select id="category-kind" class="inline-form__wide" aria-label="Тип категории">
+              <option value="expense">Расход</option>
+              <option value="income">Доход</option>
+            </select>
+            <button class="btn inline-form__wide" type="submit">Добавить категорию</button>
+          </form>
+        </section>
+
+        <section class="card">
+          <h2>Данные</h2>
+          <p class="hint">Данные хранятся в этом браузере. На телефоне копия сохраняется через «Поделиться».</p>
+          <p class="hint" id="storage-status" aria-live="polite"></p>
+          <p class="hint" id="backup-status" aria-live="polite"></p>
+          <div class="btn-row">
+            <button class="btn" id="export-btn" type="button">Сохранить копию</button>
+            <label class="btn">
+              Импорт JSON
+              <input id="import-input" type="file" accept="application/json,.json" hidden>
+            </label>
+            <button class="btn btn--danger" id="reset-btn" type="button">Сбросить всё</button>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <nav class="tabbar" aria-label="Основная навигация">
+    <a class="tabbar__link" href="#/dashboard" data-route="/dashboard">
+      <svg class="tabbar__icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/>
+      </svg>
+      <span class="tabbar__label">Обзор</span>
+    </a>
+    <a class="tabbar__link" href="#/reports" data-route="/reports">
+      <svg class="tabbar__icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M5 20v-6M12 20V6M19 20v-9"/>
+      </svg>
+      <span class="tabbar__label">Отчёты</span>
+    </a>
+    <a class="tabbar__action" href="#/add" aria-label="Добавить операцию">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    </a>
+    <a class="tabbar__link" href="#/settings" data-route="/settings">
+      <svg class="tabbar__icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 7h10M18 7h2M4 17h2M10 17h10"/>
+        <circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>
+      </svg>
+      <span class="tabbar__label">Настройки</span>
+    </a>
+  </nav>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <dialog class="sheet" id="tx-sheet" aria-labelledby="tx-sheet-title" aria-describedby="tx-error">
+    <form class="sheet__panel" id="tx-form" novalidate>
+      <header class="sheet__head">
+        <h2 class="sheet__title" id="tx-sheet-title">Новая операция</h2>
+        <button class="icon-btn" id="tx-close" type="button" aria-label="Закрыть">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </header>
+
+      <div class="sheet__body">
+        <div class="segmented" id="tx-type" role="group" aria-label="Тип операции">
+          <button class="segmented__btn is-active" type="button" data-type="expense" aria-pressed="true">Расход</button>
+          <button class="segmented__btn" type="button" data-type="income" aria-pressed="false">Доход</button>
+          <button class="segmented__btn" type="button" data-type="transfer" aria-pressed="false">Перевод</button>
+        </div>
+
+        <label class="field">
+          <span class="field__label">Сумма</span>
+          <input id="tx-amount" name="amount" type="text" inputmode="decimal"
+                 autocomplete="off" enterkeyhint="done" placeholder="0,00" required>
+        </label>
+
+        <label class="field">
+          <span class="field__label" id="tx-account-label">Счёт</span>
+          <select id="tx-account" name="account"></select>
+        </label>
+
+        <label class="field" id="tx-to-field" hidden>
+          <span class="field__label">На счёт</span>
+          <select id="tx-to-account" name="toAccount"></select>
+        </label>
+
+        <label class="field" id="tx-category-field">
+          <span class="field__label">Категория</span>
+          <select id="tx-category" name="category"></select>
+        </label>
+
+        <label class="field">
+          <span class="field__label">Дата</span>
+          <input id="tx-date" name="date" type="date" required>
+        </label>
+
+        <label class="field">
+          <span class="field__label">Заметка <span class="field__hint">необязательно</span></span>
+          <input id="tx-note" name="note" type="text" maxlength="120" placeholder="Например, обед">
+        </label>
+      </div>
+
+      <footer class="sheet__foot">
+        <p class="form__error" id="tx-error" role="alert" hidden></p>
+        <button class="btn btn--primary" type="submit">Сохранить</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>

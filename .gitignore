@@ -1,0 +1,8 @@
+# Временные тестовые страницы и резервные копии
+__*.html
+finance-*.json
+.check.mjs
+
+# ОС
+.DS_Store
+Thumbs.db
