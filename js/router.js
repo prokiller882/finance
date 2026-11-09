@@ -1,7 +1,10 @@
 const DEFAULT_PATH = '/dashboard';
 const ADD_PATH = '/add';
 const TRANSACTIONS_PATH = '/transactions';
+const CALENDAR_PATH = '/calendar';
+const PLAN_ADD_PATH = '/calendar/add';
 const EDIT_PATH_RE = /^\/edit\/([^/]+)$/;
+const PLAN_EDIT_PATH_RE = /^\/calendar\/edit\/([^/]+)$/;
 const REPORT_KEYS = new Set(['balance', 'income', 'cashflow']);
 
 export function createRouter({ screens, overlays = {}, defaultPath = DEFAULT_PATH }) {
@@ -20,21 +23,60 @@ export function createRouter({ screens, overlays = {}, defaultPath = DEFAULT_PAT
     return trimmed || defaultPath;
   }
 
+  function decodeId(raw) {
+    try {
+      return decodeURIComponent(raw);
+    } catch {
+      return raw;
+    }
+  }
+
   function parseOverlay(path) {
     if (!path) return null;
     if (path === ADD_PATH) {
-      return { path, mode: 'create', transactionId: null };
+      return {
+        name: 'transaction',
+        path,
+        mode: 'create',
+        transactionId: null,
+        planId: null,
+        basePath: null,
+      };
     }
 
-    const match = path.match(EDIT_PATH_RE);
-    if (match) {
-      let transactionId = match[1];
-      try {
-        transactionId = decodeURIComponent(transactionId);
-      } catch {
-        /* оставляем id как есть */
-      }
-      return { path, mode: 'edit', transactionId };
+    const transactionMatch = path.match(EDIT_PATH_RE);
+    if (transactionMatch) {
+      return {
+        name: 'transaction',
+        path,
+        mode: 'edit',
+        transactionId: decodeId(transactionMatch[1]),
+        planId: null,
+        basePath: null,
+      };
+    }
+
+    if (path === PLAN_ADD_PATH) {
+      return {
+        name: 'plannedPayment',
+        path,
+        mode: 'create',
+        transactionId: null,
+        planId: null,
+        basePath: CALENDAR_PATH,
+      };
+    }
+
+    const planMatch = path.match(PLAN_EDIT_PATH_RE);
+    if (planMatch) {
+      return {
+        name: 'plannedPayment',
+        path,
+        mode: 'edit',
+        transactionId: null,
+        planId: decodeId(planMatch[1]),
+        basePath: CALENDAR_PATH,
+      };
     }
 
     return null;
@@ -72,6 +114,9 @@ export function createRouter({ screens, overlays = {}, defaultPath = DEFAULT_PAT
     if (path === TRANSACTIONS_PATH) {
       return makeRoute(screens.transactions, TRANSACTIONS_PATH, { back: true });
     }
+    if (path === CALENDAR_PATH) {
+      return makeRoute(screens.calendar, CALENDAR_PATH, { back: true });
+    }
     if (path === '/settings') return makeRoute(screens.settings, '/settings');
     return null;
   }
@@ -79,6 +124,7 @@ export function createRouter({ screens, overlays = {}, defaultPath = DEFAULT_PAT
   function tabFor(path) {
     if (path === defaultPath) return '/dashboard';
     if (path === TRANSACTIONS_PATH) return '/dashboard';
+    if (path === CALENDAR_PATH) return '/dashboard';
     if (path.startsWith('/reports')) return '/reports';
     if (path === '/settings') return '/settings';
     return null;
@@ -135,34 +181,42 @@ export function createRouter({ screens, overlays = {}, defaultPath = DEFAULT_PAT
   function handleOverlay(overlay) {
     const alreadyOpen = isOverlayPath(currentPath);
     const basePath = alreadyOpen
-      ? (overlayBasePath || defaultPath)
-      : (currentPath || defaultPath);
+      ? (overlayBasePath || overlay.basePath || defaultPath)
+      : (overlay.basePath || currentPath || defaultPath);
 
     let base = resolve(basePath);
     if (base?.redirect) base = resolve(base.path);
     if (!base) base = resolve(defaultPath);
 
-    if (!alreadyOpen) previousPath = currentPath;
+    if (!alreadyOpen) previousPath = base.path;
     currentPath = overlay.path;
     currentScreen = base.screen;
     overlayBasePath = base.path;
+
+    const isTransaction = overlay.name === 'transaction';
+    const title = isTransaction
+      ? (overlay.mode === 'edit' ? 'Редактировать операцию' : 'Новая операция')
+      : (overlay.mode === 'edit' ? 'Редактировать платёж' : 'Новый платёж');
 
     ensureInit(base.screen);
     updateChrome({
       ...base,
       path: overlay.path,
-      title: overlay.mode === 'edit' ? 'Редактировать операцию' : 'Новая операция',
+      title,
       back: false,
-      overlay: 'transaction',
-      tabPath: overlay.mode === 'edit' ? base.path : null,
+      overlay: overlay.name,
+      tabPath: isTransaction
+        ? (overlay.mode === 'edit' ? base.path : null)
+        : base.path,
     });
     base.screen.show?.(base.path);
     base.screen.render?.();
 
-    const opened = openOverlay('transaction', {
+    const opened = openOverlay(overlay.name, {
       basePath: base.path,
       mode: overlay.mode,
       transactionId: overlay.transactionId,
+      planId: overlay.planId,
     });
 
     if (!opened) {
@@ -218,7 +272,8 @@ export function createRouter({ screens, overlays = {}, defaultPath = DEFAULT_PAT
   function navigate(path) {
     const target = `#${path}`;
     if (window.location.hash === target) {
-      if (currentPath !== ADD_PATH) resetScroll();
+      // Повторный клик по ссылке на overlay не должен сбрасывать скролл базы.
+      if (!isOverlayPath(currentPath)) resetScroll();
       return;
     }
     window.location.hash = target;

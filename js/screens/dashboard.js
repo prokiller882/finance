@@ -1,5 +1,6 @@
 import { $, el, clear } from '../dom.js';
 import {
+  formatDateShort,
   formatMoney,
   isMonthKey,
   monthKey,
@@ -9,7 +10,8 @@ import {
 import { accountBalance } from '../reports/balanceSheet.js';
 import { buildDashboardOverview } from '../reports/overview.js';
 import { createTransactionRow } from '../components/transactionRow.js';
-import { accountSubtitle } from '../labels.js';
+import { accountSubtitle, PAYMENT_STATUS_LABELS } from '../labels.js';
+import { buildUpcomingPayments, paymentAmount, paymentTitle } from '../payments.js';
 
 export function createDashboard(app) {
   let totalEl;
@@ -21,6 +23,8 @@ export function createDashboard(app) {
   let recentTitleEl;
   let recentEl;
   let allTransactionsLink;
+  let paymentsEl;
+  let calendarLink;
 
   let month = monthKey();
 
@@ -65,6 +69,43 @@ export function createDashboard(app) {
     }
   }
 
+  function renderPayments(state) {
+    clear(paymentsEl);
+    const payments = buildUpcomingPayments(state, { limit: 3 });
+
+    if (!payments.length) {
+      paymentsEl.append(el('li', {
+        class: 'empty',
+        text: 'Плановых платежей нет — добавьте их в календаре.',
+      }));
+      return;
+    }
+
+    for (const occurrence of payments) {
+      const amount = paymentAmount(occurrence, state.settings.currency);
+      paymentsEl.append(el('li', { class: 'row' }, [
+        el('button', {
+          class: 'row__main row__main--button',
+          type: 'button',
+          dataset: { action: 'open-payment', date: occurrence.date },
+          attrs: {
+            'aria-label': `Открыть календарь на ${formatDateShort(occurrence.date)}`,
+          },
+        }, [
+          el('span', { class: 'row__title', text: paymentTitle(state, occurrence) }),
+          el('span', {
+            class: 'row__sub',
+            text: `${formatDateShort(occurrence.date)} · ${PAYMENT_STATUS_LABELS[occurrence.status] || ''}`,
+          }),
+        ]),
+        el('span', {
+          class: `row__amount${amount.tone ? ` amount--${amount.tone}` : ''}`,
+          text: amount.text,
+        }),
+      ]));
+    }
+  }
+
   function render() {
     if (!totalEl) return;
 
@@ -83,6 +124,7 @@ export function createDashboard(app) {
     currentMonthBtn.hidden = month === monthKey();
 
     renderAccounts(state);
+    renderPayments(state);
     renderRecent(state, overview.transactions, range);
   }
 
@@ -105,6 +147,8 @@ export function createDashboard(app) {
       recentTitleEl = $('#dash-recent-title', root);
       recentEl = $('#dash-recent', root);
       allTransactionsLink = $('#dash-all-transactions', root);
+      paymentsEl = $('#dash-payments', root);
+      calendarLink = $('#dash-calendar', root);
 
       $('#dash-prev-month', root).addEventListener('click', () => {
         setMonth(shiftMonthKey(month, -1));
@@ -116,6 +160,17 @@ export function createDashboard(app) {
 
       allTransactionsLink.addEventListener('click', () => {
         app.transactions?.setMonth(month);
+      });
+
+      calendarLink.addEventListener('click', () => {
+        app.calendar?.setMonth(month);
+      });
+
+      paymentsEl.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-action="open-payment"]');
+        if (!button) return;
+        app.calendar?.setSelectedDate(button.dataset.date);
+        app.navigate('/calendar');
       });
 
       recentEl.addEventListener('click', (event) => {

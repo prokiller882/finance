@@ -9,6 +9,11 @@ export function accountHasOperations(state, accountId) {
   );
 }
 
+/** Есть ли плановые платежи, которые ссылаются на счёт. */
+export function accountHasPlannedPayments(state, accountId) {
+  return (state.plannedPayments || []).some((plan) => plan.accountId === accountId);
+}
+
 /**
  * Проверяет и нормализует данные счёта перед сохранением.
  * excludeId нужен при редактировании, чтобы счёт не конфликтовал сам с собой.

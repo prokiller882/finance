@@ -52,6 +52,12 @@ export function todayISO() {
   return toISO(new Date());
 }
 
+export function addDaysISO(iso, days) {
+  const date = parseISO(iso);
+  date.setDate(date.getDate() + days);
+  return toISO(date);
+}
+
 /** Ключ месяца в локальном времени: 'YYYY-MM'. */
 export function monthKey(date = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -102,6 +108,12 @@ export function formatDateShort(iso) {
     ? { day: 'numeric', month: 'short' }
     : { day: 'numeric', month: 'short', year: 'numeric' };
   return new Intl.DateTimeFormat('ru-RU', options).format(date).replace('.', '');
+}
+
+const WEEKDAY_FORMAT = new Intl.DateTimeFormat('ru-RU', { weekday: 'short' });
+
+export function formatDateWithWeekday(iso) {
+  return `${formatDateNumeric(iso)}, ${WEEKDAY_FORMAT.format(parseISO(iso))}`;
 }
 
 export function rangeFor(kind, now = new Date()) {

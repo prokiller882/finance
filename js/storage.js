@@ -4,6 +4,8 @@ import { SCHEMA_VERSION } from './schema.js';
 import {
   Budget,
   Category,
+  PaymentOccurrence,
+  PlannedPayment,
   Transaction,
   ValidationError,
   DEFAULT_CATEGORY_ICON,
@@ -61,6 +63,12 @@ export function migrate(data) {
   if (data.budgets != null && !Array.isArray(data.budgets)) {
     fail('INVALID_STATE', 'Раздел бюджетов должен быть массивом.');
   }
+  if (data.plannedPayments != null && !Array.isArray(data.plannedPayments)) {
+    fail('INVALID_STATE', 'Раздел плановых платежей должен быть массивом.');
+  }
+  if (data.paymentOccurrences != null && !Array.isArray(data.paymentOccurrences)) {
+    fail('INVALID_STATE', 'Раздел вхождений платежей должен быть массивом.');
+  }
 
   const now = new Date().toISOString();
   const settings = isPlainObject(data.settings) ? data.settings : {};
@@ -108,6 +116,35 @@ export function migrate(data) {
     budgets: (Array.isArray(data.budgets) ? data.budgets : []).map((budget) => (
       isPlainObject(budget) ? { ...budget } : {}
     )),
+    plannedPayments: (Array.isArray(data.plannedPayments) ? data.plannedPayments : []).map((plan) => {
+      const source = isPlainObject(plan) ? plan : {};
+      const recurrence = source.recurrence ?? 'none';
+      const createdAt = source.createdAt || source.updatedAt || updatedAt;
+      return {
+        ...source,
+        type: source.type,
+        amount: source.amount,
+        accountId: source.accountId,
+        categoryId: source.categoryId ?? null,
+        note: typeof source.note === 'string' ? source.note.trim() : (source.note ?? ''),
+        startDate: source.startDate,
+        recurrence,
+        endDate: recurrence === 'none' ? null : (source.endDate ?? null),
+        createdAt,
+        updatedAt: source.updatedAt || createdAt,
+      };
+    }),
+    paymentOccurrences: (Array.isArray(data.paymentOccurrences) ? data.paymentOccurrences : []).map((occurrence) => {
+      const source = isPlainObject(occurrence) ? occurrence : {};
+      const createdAt = source.createdAt || source.updatedAt || updatedAt;
+      return {
+        ...source,
+        status: source.status,
+        transactionId: source.transactionId ?? null,
+        createdAt,
+        updatedAt: source.updatedAt || createdAt,
+      };
+    }),
   };
 }
 
@@ -236,6 +273,8 @@ export function validateState(state) {
     });
   }
 
+  const transactionById = new Map(transactions.map(({ value }) => [value.id, value]));
+
   for (const { path, value: transaction } of transactions) {
     if (!accountIds.has(transaction.accountId)) {
       addError(`${path}.accountId`, 'Счёт операции не найден.');
@@ -283,6 +322,86 @@ export function validateState(state) {
         addError(`${path}.categoryId`, 'Категория бюджета не найдена.');
       } else if (category.kind !== 'expense') {
         addError(`${path}.categoryId`, 'Бюджет можно задать только для расходной категории.');
+      }
+    });
+  }
+
+  const planIds = new Set();
+  const planById = new Map();
+  if (!Array.isArray(state.plannedPayments)) {
+    addError('plannedPayments', 'Раздел плановых платежей должен быть массивом.');
+  } else {
+    state.plannedPayments.forEach((raw, index) => {
+      const path = `plannedPayments[${index}]`;
+      const plan = entityFromJSON(PlannedPayment, raw, path, errors);
+      if (!plan) return;
+
+      if (planIds.has(plan.id)) {
+        addError(`${path}.id`, 'Повторяющийся id платежа.');
+      } else {
+        planIds.add(plan.id);
+        planById.set(plan.id, plan);
+      }
+
+      if (!accountIds.has(plan.accountId)) {
+        addError(`${path}.accountId`, 'Счёт платежа не найден.');
+      }
+
+      if (plan.categoryId !== null) {
+        const category = categoryById.get(plan.categoryId);
+        if (!category) {
+          addError(`${path}.categoryId`, 'Категория платежа не найдена.');
+        } else if (category.kind !== plan.type) {
+          addError(`${path}.categoryId`, 'Тип категории не совпадает с типом платежа.');
+        }
+      }
+    });
+  }
+
+  const occurrenceIds = new Set();
+  const occurrenceKeys = new Set();
+  const occurrenceTransactionIds = new Set();
+  if (!Array.isArray(state.paymentOccurrences)) {
+    addError('paymentOccurrences', 'Раздел вхождений платежей должен быть массивом.');
+  } else {
+    state.paymentOccurrences.forEach((raw, index) => {
+      const path = `paymentOccurrences[${index}]`;
+      const occurrence = entityFromJSON(PaymentOccurrence, raw, path, errors);
+      if (!occurrence) return;
+
+      if (occurrenceIds.has(occurrence.id)) {
+        addError(`${path}.id`, 'Повторяющийся id вхождения.');
+      } else {
+        occurrenceIds.add(occurrence.id);
+      }
+
+      const occurrenceKey = `${occurrence.planId}:${occurrence.date}`;
+      if (occurrenceKeys.has(occurrenceKey)) {
+        addError(`${path}.date`, 'На эту дату уже есть вхождение платежа.');
+      } else {
+        occurrenceKeys.add(occurrenceKey);
+      }
+
+      const plan = planById.get(occurrence.planId);
+      if (!plan) {
+        addError(`${path}.planId`, 'Плановый платёж не найден.');
+      }
+
+      if (occurrence.status === 'paid') {
+        // Тип и счёт операции не сверяем с текущим шаблоном: серию можно
+        // отредактировать, а оплаченное вхождение остаётся фактом.
+        const transaction = transactionById.get(occurrence.transactionId);
+        if (!transaction) {
+          addError(`${path}.transactionId`, 'Операция оплаты не найдена.');
+        } else if (transaction.type === 'transfer') {
+          addError(`${path}.transactionId`, 'Операция оплаты не может быть переводом.');
+        }
+
+        if (occurrenceTransactionIds.has(occurrence.transactionId)) {
+          addError(`${path}.transactionId`, 'Операция уже привязана к другому платежу.');
+        } else {
+          occurrenceTransactionIds.add(occurrence.transactionId);
+        }
       }
     });
   }

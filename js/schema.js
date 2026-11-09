@@ -1,3 +1,3 @@
 // Версия структуры состояния. Хранится отдельно, чтобы seed.js и storage.js
 // не импортировали друг друга по кругу.
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;

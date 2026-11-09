@@ -22,5 +22,7 @@ export function createSeedState() {
     categories,
     transactions: [],
     budgets: [],
+    plannedPayments: [],
+    paymentOccurrences: [],
   };
 }

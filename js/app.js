@@ -2,14 +2,22 @@ import { createStore } from './store.js';
 import * as storage from './storage.js';
 import { createRouter } from './router.js';
 import { createSeedState } from './seed.js';
-import { Category, Transaction } from './models/index.js';
+import { Category, PaymentOccurrence, PlannedPayment, Transaction } from './models/index.js';
+import { todayISO } from './format.js';
+import { occursOn } from './recurrence.js';
 import { newId } from './util.js';
 import { accountBalance } from './reports/balanceSheet.js';
-import { accountHasOperations, normalizeAccountInput } from './accounts.js';
+import {
+  accountHasOperations,
+  accountHasPlannedPayments,
+  normalizeAccountInput,
+} from './accounts.js';
 import { ensurePersistentStorage, registerServiceWorker } from './pwa.js';
 import { createDashboard } from './screens/dashboard.js';
 import { createTransactions } from './screens/transactions.js';
+import { createCalendar } from './screens/calendar.js';
 import { createTransactionSheet } from './components/transactionSheet.js';
+import { createPlannedPaymentSheet } from './components/plannedPaymentSheet.js';
 import { createReports } from './screens/reports.js';
 import { createSettings } from './screens/settings.js';
 
@@ -49,6 +57,9 @@ const actions = {
   deleteTransaction(id) {
     return store.commit((state) => {
       state.transactions = state.transactions.filter((transaction) => transaction.id !== id);
+      state.paymentOccurrences = state.paymentOccurrences.filter(
+        (occurrence) => occurrence.transactionId !== id,
+      );
     });
   },
 
@@ -58,10 +69,133 @@ const actions = {
       if (index < 0) throw new Error('Операция не найдена.');
 
       const current = state.transactions[index];
-      state.transactions[index] = Transaction.create(
+      const next = Transaction.create(
         { ...input, createdAt: current.createdAt },
         { id: current.id },
       ).toJSON();
+
+      state.transactions[index] = next;
+
+      // Если изменились тип, счёт или дата, оплаченное вхождение больше
+      // не соответствует операции и возвращается в ожидание.
+      const scheduleChanged = next.type !== current.type
+        || next.accountId !== current.accountId
+        || next.date !== current.date;
+      if (scheduleChanged) {
+        state.paymentOccurrences = state.paymentOccurrences.filter(
+          (occurrence) => occurrence.transactionId !== id,
+        );
+      }
+    });
+  },
+
+  addPlannedPayment(input) {
+    const plan = PlannedPayment.create(input).toJSON();
+
+    return store.commit((state) => {
+      state.plannedPayments.push(plan);
+    });
+  },
+
+  updatePlannedPayment(id, input) {
+    return store.commit((state) => {
+      const index = state.plannedPayments.findIndex((plan) => plan.id === id);
+      if (index < 0) throw new Error('Платёж не найден.');
+
+      const current = state.plannedPayments[index];
+      const next = PlannedPayment.create(
+        { ...input, createdAt: current.createdAt },
+        { id: current.id },
+      ).toJSON();
+
+      state.plannedPayments[index] = next;
+
+      // Оплаченные вхождения остаются историей, пропущенные — только если
+      // дата всё ещё входит в новую серию.
+      state.paymentOccurrences = state.paymentOccurrences.filter((occurrence) => {
+        if (occurrence.planId !== id) return true;
+        if (occurrence.status === 'paid') return true;
+        return occursOn(next, occurrence.date);
+      });
+    });
+  },
+
+  deletePlannedPayment(id) {
+    return store.commit((state) => {
+      state.plannedPayments = state.plannedPayments.filter((plan) => plan.id !== id);
+      state.paymentOccurrences = state.paymentOccurrences.filter(
+        (occurrence) => occurrence.planId !== id,
+      );
+    });
+  },
+
+  payPlannedPayment(planId, date) {
+    return store.commit((state) => {
+      const plan = state.plannedPayments.find((item) => item.id === planId);
+      if (!plan) throw new Error('Платёж не найден.');
+
+      const existing = state.paymentOccurrences.find(
+        (occurrence) => occurrence.planId === planId && occurrence.date === date,
+      );
+      if (existing?.status === 'paid') throw new Error('Платёж уже оплачен.');
+
+      const transaction = Transaction.create({
+        type: plan.type,
+        amount: plan.amount,
+        accountId: plan.accountId,
+        categoryId: plan.categoryId,
+        note: plan.note,
+        date: todayISO(),
+      }).toJSON();
+
+      state.transactions.push(transaction);
+
+      if (existing) {
+        existing.status = 'paid';
+        existing.transactionId = transaction.id;
+        existing.updatedAt = new Date().toISOString();
+      } else {
+        state.paymentOccurrences.push(PaymentOccurrence.create({
+          planId,
+          date,
+          status: 'paid',
+          transactionId: transaction.id,
+        }).toJSON());
+      }
+    });
+  },
+
+  skipPlannedPayment(planId, date) {
+    return store.commit((state) => {
+      const plan = state.plannedPayments.find((item) => item.id === planId);
+      if (!plan) throw new Error('Платёж не найден.');
+
+      const existing = state.paymentOccurrences.find(
+        (occurrence) => occurrence.planId === planId && occurrence.date === date,
+      );
+      if (existing?.status === 'paid') throw new Error('Оплаченный платёж нельзя пропустить.');
+      if (existing?.status === 'skipped') return;
+
+      state.paymentOccurrences.push(PaymentOccurrence.create({
+        planId,
+        date,
+        status: 'skipped',
+        transactionId: null,
+      }).toJSON());
+    });
+  },
+
+  restorePlannedPayment(planId, date) {
+    return store.commit((state) => {
+      const existing = state.paymentOccurrences.find(
+        (occurrence) => occurrence.planId === planId && occurrence.date === date,
+      );
+      if (!existing) return;
+      if (existing.status === 'paid') throw new Error('Оплаченный платёж нельзя вернуть в ожидание.');
+
+      state.paymentOccurrences = state.paymentOccurrences.filter(
+        (occurrence) => !(occurrence.planId === planId && occurrence.date === date),
+      );
     });
   },
 
@@ -108,6 +242,9 @@ const actions = {
       if (accountHasOperations(state, id)) {
         throw new Error('По счёту есть операции — отправьте его в архив');
       }
+      if (accountHasPlannedPayments(state, id)) {
+        throw new Error('По счёту есть плановые платежи — удалите их или отправьте счёт в архив');
+      }
 
       if (!allowNonZero && accountBalance(state, id) !== 0) {
         throw new Error('Счёт с ненулевым остатком нельзя удалить без подтверждения');
@@ -132,6 +269,9 @@ const actions = {
         .filter((budget) => budget.categoryId !== id);
       for (const transaction of state.transactions) {
         if (transaction.categoryId === id) transaction.categoryId = null;
+      }
+      for (const plan of state.plannedPayments) {
+        if (plan.categoryId === id) plan.categoryId = null;
       }
     });
   },
@@ -171,17 +311,25 @@ const dashboard = createDashboard(app);
 const transactions = createTransactions(app);
 app.transactions = transactions;
 
+const calendar = createCalendar(app);
+app.calendar = calendar;
+
 const screens = {
   dashboard,
   transactions,
+  calendar,
   reports: createReports(app),
   settings: createSettings(app),
 };
 
 const transactionSheet = createTransactionSheet(app, { dashboard, transactions });
+const plannedPaymentSheet = createPlannedPaymentSheet(app, { calendar });
 router = createRouter({
   screens,
-  overlays: { transaction: transactionSheet },
+  overlays: {
+    transaction: transactionSheet,
+    plannedPayment: plannedPaymentSheet,
+  },
 });
 
 store.subscribe(() => router.refresh());

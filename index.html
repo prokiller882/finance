@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f4f5f7">
-  <meta name="description" content="Трекер личных финансов: счета, операции и три отчёта. Данные хранятся в этом браузере.">
+  <meta name="description" content="Трекер личных финансов: счета, операции, отчёты и платёжный календарь. Данные хранятся в этом браузере.">
   <title>Обзор · Финансы</title>
   <link rel="manifest" href="./manifest.json">
   <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
@@ -59,10 +59,74 @@
 
         <section class="block">
           <div class="block__head">
+            <h2>Ближайшие платежи</h2>
+            <a class="block__link" id="dash-calendar" href="#/calendar" aria-label="Открыть календарь">Календарь</a>
+          </div>
+          <ul class="list" id="dash-payments"></ul>
+        </section>
+
+        <section class="block">
+          <div class="block__head">
             <h2 id="dash-recent-title">Последние операции</h2>
             <a class="block__link" id="dash-all-transactions" href="#/transactions" aria-label="Все операции">Все</a>
           </div>
           <ul class="list" id="dash-recent"></ul>
+        </section>
+      </section>
+
+      <!-- Платёжный календарь -->
+      <section class="screen" id="screen-calendar" data-screen="calendar" hidden>
+        <section class="month-switch" aria-label="Месяц календаря">
+          <button class="icon-btn" id="cal-prev-month" type="button" aria-label="Предыдущий месяц">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+          <div class="month-switch__center">
+            <span class="month-switch__label" id="cal-month" aria-live="polite"></span>
+            <button class="month-switch__current" id="cal-current-month" type="button" hidden>Текущий</button>
+          </div>
+          <button class="icon-btn" id="cal-next-month" type="button" aria-label="Следующий месяц">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+          </button>
+        </section>
+
+        <section class="card card--warning" id="cal-overdue" hidden>
+          <div class="block__head">
+            <h2 id="cal-overdue-title">Требует внимания</h2>
+          </div>
+          <ul class="list" id="cal-overdue-list"></ul>
+        </section>
+
+        <section class="card calendar-summary">
+          <div class="block__head">
+            <h2 id="cal-summary-title">План на месяц</h2>
+          </div>
+          <div class="calendar-summary__grid" id="cal-summary"></div>
+          <button class="btn btn--primary calendar-summary__add" id="cal-add" type="button">
+            Добавить платёж
+          </button>
+        </section>
+
+        <section class="block">
+          <div class="calendar-weekdays" aria-hidden="true">
+            <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span>
+            <span>Пт</span><span>Сб</span><span>Вс</span>
+          </div>
+          <div class="calendar-grid" id="cal-grid" role="group" aria-label="Дни месяца"></div>
+        </section>
+
+        <section class="block">
+          <div class="block__head">
+            <h2 id="cal-day-title">Выбранный день</h2>
+          </div>
+          <ul class="list" id="cal-day-list"></ul>
+        </section>
+
+        <section class="block" id="cal-forecast-block">
+          <div class="block__head">
+            <h2>Прогноз до конца месяца</h2>
+          </div>
+          <ul class="list" id="cal-forecast"></ul>
+          <p class="hint" id="cal-forecast-note"></p>
         </section>
       </section>
 
@@ -303,6 +367,69 @@
 
       <footer class="sheet__foot">
         <p class="form__error" id="tx-error" role="alert" hidden></p>
+        <button class="btn btn--primary" type="submit">Сохранить</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog class="sheet" id="plan-sheet" aria-labelledby="plan-sheet-title" aria-describedby="plan-error">
+    <form class="sheet__panel" id="plan-form" novalidate>
+      <header class="sheet__head">
+        <h2 class="sheet__title" id="plan-sheet-title">Новый платёж</h2>
+        <button class="icon-btn" id="plan-close" type="button" aria-label="Закрыть">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </header>
+
+      <div class="sheet__body">
+        <div class="segmented" id="plan-type" role="group" aria-label="Тип платежа">
+          <button class="segmented__btn is-active" type="button" data-type="expense" aria-pressed="true">Расход</button>
+          <button class="segmented__btn" type="button" data-type="income" aria-pressed="false">Доход</button>
+        </div>
+
+        <label class="field">
+          <span class="field__label">Сумма</span>
+          <input id="plan-amount" name="amount" type="text" inputmode="decimal"
+                 autocomplete="off" enterkeyhint="done" placeholder="0,00" required>
+        </label>
+
+        <label class="field">
+          <span class="field__label">Счёт</span>
+          <select id="plan-account" name="account"></select>
+        </label>
+
+        <label class="field">
+          <span class="field__label">Категория</span>
+          <select id="plan-category" name="category"></select>
+        </label>
+
+        <label class="field">
+          <span class="field__label">Дата</span>
+          <input id="plan-date" name="date" type="date" required>
+        </label>
+
+        <label class="field">
+          <span class="field__label">Повторение</span>
+          <select id="plan-recurrence" name="recurrence">
+            <option value="none">Не повторять</option>
+            <option value="monthly">Ежемесячно</option>
+            <option value="yearly">Ежегодно</option>
+          </select>
+        </label>
+
+        <label class="field" id="plan-end-field" hidden>
+          <span class="field__label">Повторять до <span class="field__hint">необязательно</span></span>
+          <input id="plan-end" name="endDate" type="date">
+        </label>
+
+        <label class="field">
+          <span class="field__label">Заметка <span class="field__hint">необязательно</span></span>
+          <input id="plan-note" name="note" type="text" maxlength="120" placeholder="Например, аренда">
+        </label>
+      </div>
+
+      <footer class="sheet__foot">
+        <p class="form__error" id="plan-error" role="alert" hidden></p>
         <button class="btn btn--primary" type="submit">Сохранить</button>
       </footer>
     </form>

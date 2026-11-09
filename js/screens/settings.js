@@ -2,7 +2,7 @@ import { $, el, clear, fillSelect, icon } from '../dom.js';
 import { formatAmountInput, formatMoney, parseAmount } from '../format.js';
 import { accountBalance } from '../reports/balanceSheet.js';
 import { ACCOUNT_KINDS, accountSubtitle } from '../labels.js';
-import { accountHasOperations, normalizeAccountInput } from '../accounts.js';
+import { accountHasOperations, accountHasPlannedPayments, normalizeAccountInput } from '../accounts.js';
 import { daysSince, ensurePersistentStorage, isStoragePersisted } from '../pwa.js';
 
 const BACKUP_STALE_DAYS = 30;
@@ -317,7 +317,7 @@ export function createSettings(app) {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!window.confirm(`Импорт файла «${file.name}» заменит текущие счета, операции и настройки. Продолжить?`)) {
+    if (!window.confirm(`Импорт файла «${file.name}» заменит текущие счета, операции, плановые платежи и настройки. Продолжить?`)) {
       importInput.value = '';
       return;
     }
@@ -398,6 +398,11 @@ export function createSettings(app) {
           return;
         }
 
+        if (accountHasPlannedPayments(app.state, account.id)) {
+          app.toast('По счёту есть плановые платежи — удалите их или отправьте счёт в архив');
+          return;
+        }
+
         const balance = accountBalance(app.state, account.id);
         const money = formatMoney(balance, app.state.settings.currency);
         if (balance !== 0) {
@@ -429,7 +434,7 @@ export function createSettings(app) {
         if (!button) return;
         const category = app.state.categories.find((item) => item.id === button.dataset.id);
         if (!category) return;
-        if (!window.confirm(`Удалить категорию «${category.name}»? Операции останутся без категории, связанные бюджеты будут удалены.`)) return;
+        if (!window.confirm(`Удалить категорию «${category.name}»? Операции и плановые платежи останутся без категории, связанные бюджеты будут удалены.`)) return;
         const saved = app.actions.deleteCategory(button.dataset.id);
         if (!saved) {
           app.toast('Не удалось удалить категорию');
@@ -457,7 +462,7 @@ export function createSettings(app) {
       importInput.addEventListener('change', onImport);
 
       $('#reset-btn', root).addEventListener('click', () => {
-        if (!window.confirm('Удалить все операции, счета, категории и бюджеты без возможности восстановления?')) return;
+        if (!window.confirm('Удалить все операции, счета, категории, бюджеты и плановые платежи без возможности восстановления?')) return;
         app.actions.reset();
         resetAccountEdit();
         renderBackupStatus();

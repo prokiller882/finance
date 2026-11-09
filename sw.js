@@ -3,7 +3,7 @@
  * добавьте его в PRECACHE и поднимите версию CACHE, иначе офлайн-режим
  * будет падать на отсутствующем модуле.
  */
-const CACHE = 'finance-shell-v1';
+const CACHE = 'finance-shell-v2';
 const INDEX_URL = new URL('index.html', self.registration.scope).href;
 const SCOPE_PATH = new URL('./', self.location).pathname;
 
@@ -17,6 +17,8 @@ const PRECACHE = [
   './icons/icon-maskable-512.png',
   './js/accounts.js',
   './js/app.js',
+  './js/components/paymentRow.js',
+  './js/components/plannedPaymentSheet.js',
   './js/components/transactionRow.js',
   './js/components/transactionSheet.js',
   './js/dom.js',
@@ -26,15 +28,20 @@ const PRECACHE = [
   './js/models/budget.js',
   './js/models/category.js',
   './js/models/index.js',
+  './js/models/paymentOccurrence.js',
+  './js/models/plannedPayment.js',
   './js/models/transaction.js',
   './js/models/validation.js',
+  './js/payments.js',
   './js/pwa.js',
+  './js/recurrence.js',
   './js/reports/balanceSheet.js',
   './js/reports/cashFlow.js',
   './js/reports/incomeStatement.js',
   './js/reports/overview.js',
   './js/router.js',
   './js/schema.js',
+  './js/screens/calendar.js',
   './js/screens/dashboard.js',
   './js/screens/reports.js',
   './js/screens/settings.js',
@@ -58,7 +65,9 @@ self.addEventListener('activate', (event) => {
     caches.keys()
       .then((keys) => Promise.all(
         keys
-          .filter((key) => key !== CACHE)
+          // Чистим только кэши этого приложения: на общем origin
+          // prokiller882.github.io живут и другие проекты.
+          .filter((key) => key.startsWith('finance-shell-') && key !== CACHE)
           .map((key) => caches.delete(key)),
       ))
       .then(() => self.clients.claim()),
