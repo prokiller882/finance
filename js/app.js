@@ -42,7 +42,11 @@ function applyTheme() {
   document.documentElement.dataset.theme = resolved;
 
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', resolved === 'dark' ? '#0b1220' : '#f4f5f7');
+  if (meta) {
+    // Цвет берём из токена темы, чтобы не дублировать hex в JS.
+    const bg = getComputedStyle(document.documentElement).getPropertyValue('--color-bg').trim();
+    if (bg) meta.setAttribute('content', bg);
+  }
 }
 
 const actions = {

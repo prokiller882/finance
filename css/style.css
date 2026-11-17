@@ -14,21 +14,20 @@
 :root {
   /* палитра (примитивы) */
   --gray-0: #ffffff;
-  --gray-50: #f4f5f7;
-  --gray-100: #eef0f4;
-  --gray-200: #e5e7eb;
-  --gray-500: #6b7280;
-  --gray-900: #111827;
+  --gray-50: #f7f7f8;
+  --gray-100: #f2f3f5;
+  --gray-200: #e3e5ea;
+  --gray-500: #6b6f76;
+  --gray-900: #1b1c1e;
 
-  --brand-400: #818cf8;
-  --brand-500: #4f46e5;
-  --brand-600: #4338ca;
-  --brand-violet: #7c3aed;
+  --brand-400: #8b98ff;
+  --brand-500: #2635d9;
+  --brand-600: #1f2bb0;
 
-  --green-400: #34d399;
-  --green-600: #047857;
+  --green-400: #4ade80;
+  --green-600: #0f7b55;
   --red-400: #f87171;
-  --red-600: #dc2626;
+  --red-600: #c23b3b;
 
   /* семантика (светлая тема) */
   --color-bg: var(--gray-50);
@@ -39,7 +38,7 @@
   --color-border: var(--gray-200);
   --color-accent: var(--brand-500);
   --color-accent-strong: var(--brand-600);
-  --color-accent-text: var(--brand-600);
+  --color-accent-text: var(--brand-500);
   --color-on-accent: #ffffff;
   --color-on-accent-muted: color-mix(in srgb, var(--color-on-accent) 85%, transparent);
   --color-on-accent-subtle: color-mix(in srgb, var(--color-on-accent) 18%, transparent);
@@ -48,11 +47,10 @@
   --color-expense: var(--red-600);
   --color-focus-ring: var(--brand-500);
   --color-accent-soft: color-mix(in srgb, var(--color-accent) 14%, transparent);
-  --color-danger-soft: color-mix(in srgb, var(--color-expense) 12%, transparent);
+  --color-danger-soft: color-mix(in srgb, var(--color-expense) 8%, transparent);
   --color-toast-bg: var(--gray-900);
   --color-toast-text: var(--gray-0);
-  --color-backdrop: rgba(17, 24, 39, 0.55);
-  --gradient-accent: linear-gradient(135deg, var(--brand-500), var(--brand-violet));
+  --color-backdrop: rgba(20, 21, 23, 0.45);
 
   /* типографика */
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -115,21 +113,21 @@
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --color-bg: #0b1220;
-  --color-surface: #131c2e;
-  --color-surface-muted: #1c2740;
-  --color-text: #e8edf7;
-  --color-text-muted: #94a3b8;
-  --color-border: #24314d;
-  --color-accent: #5b5ef0;
+  --color-bg: #141517;
+  --color-surface: #1a1b1e;
+  --color-surface-muted: #23252a;
+  --color-text: #ecedef;
+  --color-text-muted: #9a9ea6;
+  --color-border: #2b2d33;
+  --color-accent: var(--brand-500);
   --color-accent-strong: var(--brand-400);
   --color-accent-text: var(--brand-400);
   --color-income: var(--green-400);
   --color-expense: var(--red-400);
   --color-focus-ring: var(--brand-400);
-  --color-toast-bg: #24314d;
-  --color-toast-text: #e8edf7;
-  --color-backdrop: rgba(0, 0, 0, 0.65);
+  --color-toast-bg: #2a2c31;
+  --color-toast-text: #ecedef;
+  --color-backdrop: rgba(0, 0, 0, 0.6);
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.25);
@@ -263,7 +261,7 @@ body.is-sheet-open #app { overflow: hidden; }
 }
 
 .card--total {
-  background: var(--gradient-accent);
+  background: var(--color-accent);
   border: 0;
   color: var(--color-on-accent);
   padding: var(--space-5);
@@ -523,7 +521,7 @@ body.is-sheet-open #app { overflow: hidden; }
   width: var(--size-touch);
   height: var(--size-touch);
   border-radius: var(--radius-full);
-  background: var(--gradient-accent);
+  background: var(--color-accent);
   color: var(--color-on-accent);
   box-shadow: var(--shadow-accent);
   transition: transform var(--duration-fast) ease;
