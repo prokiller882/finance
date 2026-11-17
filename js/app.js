@@ -351,6 +351,10 @@ document.getElementById('back-btn')?.addEventListener('click', () => {
   router.back();
 });
 
+document.getElementById('settings-btn')?.addEventListener('click', () => {
+  router.navigate('/settings');
+});
+
 applyTheme();
 ensurePersistentStorage();
 registerServiceWorker();

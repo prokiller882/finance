@@ -115,18 +115,17 @@ export function createRouter({ screens, overlays = {}, defaultPath = DEFAULT_PAT
       return makeRoute(screens.transactions, TRANSACTIONS_PATH, { back: true });
     }
     if (path === CALENDAR_PATH) {
-      return makeRoute(screens.calendar, CALENDAR_PATH, { back: true });
+      return makeRoute(screens.calendar, CALENDAR_PATH);
     }
-    if (path === '/settings') return makeRoute(screens.settings, '/settings');
+    if (path === '/settings') return makeRoute(screens.settings, '/settings', { back: true });
     return null;
   }
 
   function tabFor(path) {
     if (path === defaultPath) return '/dashboard';
     if (path === TRANSACTIONS_PATH) return '/dashboard';
-    if (path === CALENDAR_PATH) return '/dashboard';
+    if (path === CALENDAR_PATH) return '/calendar';
     if (path.startsWith('/reports')) return '/reports';
-    if (path === '/settings') return '/settings';
     return null;
   }
 
@@ -149,6 +148,12 @@ export function createRouter({ screens, overlays = {}, defaultPath = DEFAULT_PAT
 
     const backButton = document.getElementById('back-btn');
     if (backButton) backButton.hidden = !match.back;
+
+    const settingsButton = document.getElementById('settings-btn');
+    if (settingsButton) {
+      if (match.path === '/settings') settingsButton.setAttribute('aria-current', 'page');
+      else settingsButton.removeAttribute('aria-current');
+    }
 
     const activeTab = tabFor(match.tabPath || match.path);
     for (const link of document.querySelectorAll('.tabbar__link')) {

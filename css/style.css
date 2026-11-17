@@ -218,12 +218,10 @@ button, a, label {
 .app-header__title:focus { outline: none; }
 
 /* Явные колонки: скрытая кнопка «Назад» не сдвигает заголовок влево. */
-.app-header > .icon-btn { grid-column: 1; }
+.app-header > #back-btn { grid-column: 1; }
 
-.app-header__spacer {
-  grid-column: 3;
-  width: var(--size-touch);
-}
+/* Шестерёнка настроек — правая колонка шапки на всех экранах. */
+.app-header > #settings-btn { grid-column: 3; }
 
 #app {
   min-height: 0;
@@ -717,6 +715,8 @@ a:focus-visible {
 }
 
 .icon-btn:active { background: var(--color-surface-muted); }
+
+.icon-btn[aria-current="page"] { color: var(--color-accent-text); }
 
 .icon-btn svg {
   width: 22px;
