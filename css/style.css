@@ -64,7 +64,6 @@
   --weight-regular: 400;
   --weight-medium: 500;
   --weight-semibold: 600;
-  --weight-bold: 700;
   --tracking-tight: -0.02em;
 
   /* отступы */
@@ -255,7 +254,7 @@ body.is-sheet-open #app { overflow: hidden; }
   display: block;
   margin-top: var(--space-1);
   font-size: var(--text-2xl);
-  font-weight: var(--weight-bold);
+  font-weight: var(--weight-semibold);
   line-height: var(--leading-tight);
   letter-spacing: var(--tracking-tight);
   font-variant-numeric: tabular-nums;
@@ -503,7 +502,13 @@ body.is-sheet-open #app { overflow: hidden; }
 .tabbar__action:active { transform: scale(0.94); }
 
 .tabbar__action[aria-current="page"] {
-  box-shadow: 0 0 0 3px var(--color-accent-soft);
+  outline: 3px solid var(--color-accent-soft);
+  outline-offset: 0;
+}
+
+.tabbar__action[aria-current="page"]:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }
 
 .tabbar__action svg {
@@ -552,12 +557,27 @@ select {
 }
 
 select {
-  background-image: linear-gradient(45deg, transparent 50%, var(--color-text-muted) 50%),
-                    linear-gradient(135deg, var(--color-text-muted) 50%, transparent 50%);
-  background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%;
-  background-size: 5px 5px, 5px 5px;
-  background-repeat: no-repeat;
   padding-right: var(--space-8);
+}
+
+/* Стрелка селекта — псевдоэлемент обёртки: без градиентов и хардкода цвета. */
+.select-wrap {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.select-wrap::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: var(--space-3);
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--color-text-muted);
+  border-bottom: 2px solid var(--color-text-muted);
+  transform: translateY(-70%) rotate(45deg);
+  pointer-events: none;
 }
 
 input:focus-visible,
@@ -1052,16 +1072,25 @@ a:focus-visible {
 }
 
 .calendar-dot {
-  width: 4px;
-  height: 4px;
+  width: 6px;
+  height: 6px;
   border-radius: var(--radius-full);
   background: var(--color-text-muted);
 }
 
 .calendar-dot--expense { background: var(--color-expense); }
 .calendar-dot--income { background: var(--color-income); }
-.calendar-dot--paid { opacity: 0.45; }
-.calendar-dot--skipped { background: var(--color-border); }
+
+/* Статус читается формой, а не только цветом: оплачено — контур, пропущено — пунктир. */
+.calendar-dot--paid {
+  background: transparent;
+  border: 1px solid var(--color-text-muted);
+}
+
+.calendar-dot--skipped {
+  background: transparent;
+  border: 1px dashed var(--color-text-muted);
+}
 
 .calendar-day__more {
   color: var(--color-text-muted);

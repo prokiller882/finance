@@ -6,15 +6,11 @@ import {
 } from './validation.js';
 
 export const CATEGORY_KINDS = ['expense', 'income'];
+// Палитра категорий — это данные: цвет сохраняется в state и localStorage
+// вместе с категорией, а не берётся из CSS-токенов.
 export const CATEGORY_COLORS = [
-  '#4f46e5',
-  '#0ea5e9',
-  '#10b981',
-  '#f59e0b',
-  '#ef4444',
-  '#8b5cf6',
-  '#ec4899',
-  '#14b8a6',
+  '#4f46e5', '#0ea5e9', '#10b981', '#f59e0b', // unslop-ignore: данные, не стили
+  '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', // unslop-ignore: данные, не стили
 ];
 export const DEFAULT_CATEGORY_ICON = 'tag';
 

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f7f7f8">
+  <meta name="theme-color" content="#f7f7f8"><!-- unslop-ignore: стартовое значение, applyTheme() перезаписывает из --color-bg -->
   <meta name="description" content="Трекер личных финансов: счета, операции, отчёты и платёжный календарь. Данные хранятся в этом браузере.">
   <title>Обзор · Финансы</title>
   <link rel="manifest" href="./manifest.json">
@@ -161,11 +161,15 @@
           <div class="filters__grid">
             <label class="field">
               <span class="field__label">Счёт</span>
-              <select id="op-account-filter"></select>
+              <div class="select-wrap">
+                <select id="op-account-filter"></select>
+              </div>
             </label>
             <label class="field">
               <span class="field__label">Категория</span>
-              <select id="op-category-filter"></select>
+              <div class="select-wrap">
+                <select id="op-category-filter"></select>
+              </div>
             </label>
             <label class="field filters__wide">
               <span class="field__label">Поиск</span>
@@ -223,22 +227,26 @@
           <h2>Основное</h2>
           <label class="field">
             <span class="field__label">Валюта</span>
-            <select id="set-currency">
-              <option value="RUB">₽ — российский рубль</option>
-              <option value="USD">$ — доллар США</option>
-              <option value="EUR">€ — евро</option>
-              <option value="KZT">₸ — тенге</option>
-              <option value="BYN">Br — белорусский рубль</option>
-            </select>
+            <div class="select-wrap">
+              <select id="set-currency">
+                <option value="RUB">₽ — российский рубль</option>
+                <option value="USD">$ — доллар США</option>
+                <option value="EUR">€ — евро</option>
+                <option value="KZT">₸ — тенге</option>
+                <option value="BYN">Br — белорусский рубль</option>
+              </select>
+            </div>
           </label>
           <p class="hint">Меняет только отображение: суммы не конвертируются.</p>
           <label class="field">
             <span class="field__label">Тема</span>
-            <select id="set-theme">
-              <option value="system">Как в системе</option>
-              <option value="light">Светлая</option>
-              <option value="dark">Тёмная</option>
-            </select>
+            <div class="select-wrap">
+              <select id="set-theme">
+                <option value="system">Как в системе</option>
+                <option value="light">Светлая</option>
+                <option value="dark">Тёмная</option>
+              </select>
+            </div>
           </label>
         </section>
 
@@ -250,12 +258,14 @@
           <form class="inline-form" id="account-form">
             <input id="account-name" class="inline-form__wide" type="text" maxlength="40"
                    placeholder="Название, например «Карта»" required>
-            <select id="account-kind" aria-label="Тип счёта">
-              <option value="cash">Наличные</option>
-              <option value="card">Карта</option>
-              <option value="bank">Банковский счёт</option>
-              <option value="savings">Накопления</option>
-            </select>
+            <div class="select-wrap">
+              <select id="account-kind" aria-label="Тип счёта">
+                <option value="cash">Наличные</option>
+                <option value="card">Карта</option>
+                <option value="bank">Банковский счёт</option>
+                <option value="savings">Накопления</option>
+              </select>
+            </div>
             <input id="account-opening" type="text" inputmode="decimal"
                    placeholder="Остаток" aria-label="Начальный остаток">
             <button class="btn inline-form__wide" id="account-submit" type="submit">Добавить счёт</button>
@@ -269,10 +279,12 @@
           <form class="inline-form" id="category-form">
             <input id="category-name" class="inline-form__wide" type="text" maxlength="30"
                    placeholder="Название категории" required>
-            <select id="category-kind" class="inline-form__wide" aria-label="Тип категории">
-              <option value="expense">Расход</option>
-              <option value="income">Доход</option>
-            </select>
+            <div class="select-wrap inline-form__wide">
+              <select id="category-kind" aria-label="Тип категории">
+                <option value="expense">Расход</option>
+                <option value="income">Доход</option>
+              </select>
+            </div>
             <button class="btn inline-form__wide" type="submit">Добавить категорию</button>
           </form>
         </section>
@@ -345,17 +357,23 @@
 
         <label class="field">
           <span class="field__label" id="tx-account-label">Счёт</span>
-          <select id="tx-account" name="account"></select>
+          <div class="select-wrap">
+            <select id="tx-account" name="account"></select>
+          </div>
         </label>
 
         <label class="field" id="tx-to-field" hidden>
           <span class="field__label">На счёт</span>
-          <select id="tx-to-account" name="toAccount"></select>
+          <div class="select-wrap">
+            <select id="tx-to-account" name="toAccount"></select>
+          </div>
         </label>
 
         <label class="field" id="tx-category-field">
           <span class="field__label">Категория</span>
-          <select id="tx-category" name="category"></select>
+          <div class="select-wrap">
+            <select id="tx-category" name="category"></select>
+          </div>
         </label>
 
         <label class="field">
@@ -399,12 +417,16 @@
 
         <label class="field">
           <span class="field__label">Счёт</span>
-          <select id="plan-account" name="account"></select>
+          <div class="select-wrap">
+            <select id="plan-account" name="account"></select>
+          </div>
         </label>
 
         <label class="field">
           <span class="field__label">Категория</span>
-          <select id="plan-category" name="category"></select>
+          <div class="select-wrap">
+            <select id="plan-category" name="category"></select>
+          </div>
         </label>
 
         <label class="field">
@@ -414,11 +436,13 @@
 
         <label class="field">
           <span class="field__label">Повторение</span>
-          <select id="plan-recurrence" name="recurrence">
-            <option value="none">Не повторять</option>
-            <option value="monthly">Ежемесячно</option>
-            <option value="yearly">Ежегодно</option>
-          </select>
+          <div class="select-wrap">
+            <select id="plan-recurrence" name="recurrence">
+              <option value="none">Не повторять</option>
+              <option value="monthly">Ежемесячно</option>
+              <option value="yearly">Ежегодно</option>
+            </select>
+          </div>
         </label>
 
         <label class="field" id="plan-end-field" hidden>
