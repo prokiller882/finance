@@ -40,9 +40,6 @@
   --color-accent-strong: var(--brand-600);
   --color-accent-text: var(--brand-500);
   --color-on-accent: #ffffff;
-  --color-on-accent-muted: color-mix(in srgb, var(--color-on-accent) 85%, transparent);
-  --color-on-accent-subtle: color-mix(in srgb, var(--color-on-accent) 18%, transparent);
-  --color-danger-on-accent: #fecaca;
   --color-income: var(--green-600);
   --color-expense: var(--red-600);
   --color-focus-ring: var(--brand-500);
@@ -88,12 +85,6 @@
   --size-touch: 44px;
   --size-control: 48px;
 
-  /* тени */
-  --shadow-sm: 0 1px 2px rgba(17, 24, 39, 0.05);
-  --shadow-md: 0 8px 24px rgba(17, 24, 39, 0.06);
-  --shadow-card: 0 1px 2px rgba(17, 24, 39, 0.05), 0 8px 24px rgba(17, 24, 39, 0.04);
-  --shadow-accent: 0 4px 12px rgba(79, 70, 229, 0.32);
-
   /* каркас */
   --container-max: 560px;
   --tabbar-h: 64px;
@@ -128,11 +119,6 @@
   --color-toast-bg: #2a2c31;
   --color-toast-text: #ecedef;
   --color-backdrop: rgba(0, 0, 0, 0.6);
-
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.25);
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px rgba(0, 0, 0, 0.25);
-  --shadow-accent: 0 10px 24px rgba(0, 0, 0, 0.35);
 }
 
 /* ---------- 2. База и app shell ---------- */
@@ -250,7 +236,6 @@ body.is-sheet-open #app { overflow: hidden; }
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
   padding: var(--space-4);
 }
 
@@ -260,17 +245,10 @@ body.is-sheet-open #app { overflow: hidden; }
   margin-bottom: var(--space-3);
 }
 
-.card--total {
-  background: var(--color-accent);
-  border: 0;
-  color: var(--color-on-accent);
-  padding: var(--space-5);
-}
-
 .card__label {
   display: block;
   font-size: var(--text-sm);
-  color: var(--color-on-accent-muted);
+  color: var(--color-text-muted);
 }
 
 .card__amount {
@@ -284,7 +262,7 @@ body.is-sheet-open #app { overflow: hidden; }
   overflow-wrap: anywhere;
 }
 
-.card__amount.is-negative { color: var(--color-danger-on-accent); }
+.card__amount.is-negative { color: var(--color-expense); }
 
 .split {
   display: grid;
@@ -292,14 +270,14 @@ body.is-sheet-open #app { overflow: hidden; }
   gap: var(--space-3);
   margin-top: var(--space-4);
   padding-top: var(--space-4);
-  border-top: 1px solid var(--color-on-accent-subtle);
+  border-top: 1px solid var(--color-border);
 }
 
 .split__label {
   display: block;
   margin-bottom: 2px;
   font-size: var(--text-xs);
-  color: var(--color-on-accent-muted);
+  color: var(--color-text-muted);
 }
 
 .split__value {
@@ -318,7 +296,6 @@ body.is-sheet-open #app { overflow: hidden; }
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
-  box-shadow: var(--shadow-card);
 }
 
 .month-switch__center {
@@ -355,7 +332,6 @@ body.is-sheet-open #app { overflow: hidden; }
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
   padding: var(--space-3) var(--space-4);
 }
 
@@ -523,14 +499,13 @@ body.is-sheet-open #app { overflow: hidden; }
   border-radius: var(--radius-full);
   background: var(--color-accent);
   color: var(--color-on-accent);
-  box-shadow: var(--shadow-accent);
   transition: transform var(--duration-fast) ease;
 }
 
 .tabbar__action:active { transform: scale(0.94); }
 
 .tabbar__action[aria-current="page"] {
-  box-shadow: 0 0 0 3px var(--color-accent-soft), var(--shadow-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
 }
 
 .tabbar__action svg {
@@ -619,7 +594,7 @@ a:focus-visible {
   place-items: center;
   min-height: var(--size-touch);
   padding: var(--space-1) var(--space-2);
-  border: 0;
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-text-muted);
@@ -632,8 +607,9 @@ a:focus-visible {
 .segmented__btn.is-active,
 .segmented__btn[aria-selected="true"] {
   background: var(--color-surface);
+  border-color: var(--color-border);
   color: var(--color-text);
-  box-shadow: var(--shadow-sm);
+  font-weight: var(--weight-semibold);
 }
 
 .btn {
@@ -739,11 +715,10 @@ a:focus-visible {
   max-height: min(92dvh, 720px);
   margin: auto 0 0;
   padding: 0;
-  border: 0;
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   background: var(--color-surface);
   color: var(--color-text);
-  box-shadow: var(--shadow-md);
   overflow: hidden;
 }
 
@@ -1183,7 +1158,6 @@ a:focus-visible {
   background: var(--color-toast-bg);
   color: var(--color-toast-text);
   font-size: var(--text-sm);
-  box-shadow: var(--shadow-md);
   opacity: 0;
   pointer-events: none;
   transform: translate(-50%, var(--space-2));
