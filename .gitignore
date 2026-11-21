@@ -6,3 +6,8 @@ finance-*.json
 # ОС
 .DS_Store
 Thumbs.db
+
+# Инструменты агента: BMAD и команды OpenCode (личное окружение)
+.agents/
+.opencode/
+_bmad/

@@ -1,0 +1,8 @@
+#!/bin/sh
+# Проверка PRECACHE/CACHE перед коммитом.
+# Включить один раз на клон: git config core.hooksPath .githooks
+node scripts/check-precache.mjs || {
+  echo "Коммит отменён: поправьте PRECACHE или поднимите CACHE в sw.js."
+  echo "Осознанный обход: git commit --no-verify"
+  exit 1
+}
