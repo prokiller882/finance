@@ -1,0 +1,85 @@
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created, ready for development
+#   - in-progress: Developer actively working on implementation
+#   - review: Implementation complete, ready for review
+#   - done: Story completed
+
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+
+# Action Item Status:
+#   - open: Committed during a retrospective, not yet addressed
+#   - in-progress: Actively being worked on
+#   - done: Completed
+
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when its first story starts (via build's sprint sync)
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates the next story after the previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+# - Retrospective appends its action items to action_items; the status view surfaces open ones
+generated: 11-23-2026 13:02
+last_updated: 11-23-2026 13:02
+project: test-app
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+development_status:
+  epic-1: backlog
+  1-1-сохранение-честно-сообщает-результат: backlog
+  1-2-безопасный-режим-вместо-пустого-приложения: backlog
+  1-3-схема-v4-без-потери-полей: backlog
+  1-4-системные-категории-не-выбираются-вручную: backlog
+  epic-1-retrospective: optional
+
+  epic-2: backlog
+  2-1-создание-обязательства-и-его-блок-на-обзоре: backlog
+  2-2-ежемесячный-график-по-проекции: backlog
+  2-3-правка-условий-обязательства: backlog
+  2-4-корректировка-остатка-отдельным-действием: backlog
+  2-5-архив-разархивация-и-удаление: backlog
+  epic-2-retrospective: optional
+
+  epic-3: backlog
+  3-1-оплата-вхождения-с-разбивкой-на-тело-и-проценты: backlog
+  3-2-порядок-сроков-и-защита-системных-записей: backlog
+  3-3-возврат-правка-и-удаление-оплаты: backlog
+  3-4-последний-платёж-и-авто-архив: backlog
+  3-5-p-l-по-процентам-и-новые-диапазоны: backlog
+  3-6-ддс-по-полной-сумме-и-нулевое-расхождение: backlog
+  3-7-баланс-с-кредитной-задолженностью-и-капиталом: backlog
+  3-8-первый-платёж-при-создании-обязательства: backlog
+  epic-3-retrospective: optional
+
+  epic-4: backlog
+  4-1-свободные-деньги-и-лимит-на-сегодня: backlog
+  4-2-нет-поступления-поступление-сегодня-и-нехватка: backlog
+  4-3-состав-резерва-приоритет-и-пересчёт: backlog
+  epic-4-retrospective: optional
+
+  epic-5: backlog
+  5-1-счёт-накоплений-с-нормой-сбережений: backlog
+  5-2-автоматический-перевод-при-приходе: backlog
+  5-3-галочка-не-списывать-процент: backlog
+  5-4-синхронизация-при-правке-и-каскад-при-удалении: backlog
+  5-5-сгенерированные-переводы-защищены-и-видны-в-журнале: backlog
+  5-6-границы-нормы-и-приоритет: backlog
+  epic-5-retrospective: optional
+
+  epic-6: backlog
+  6-1-три-итога-и-раскрывающийся-список-счетов: backlog
+  6-2-доходы-расходы-и-операции-месяца: backlog
+  6-3-диаграмма-долей-категорий: backlog
+  6-4-внимание-календаря-вместо-обзора: backlog
+  6-5-прогноз-остатка-на-конец-месяца: backlog
+  epic-6-retrospective: optional
