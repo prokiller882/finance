@@ -13,7 +13,7 @@ import {
 import { isISODate } from '../models/validation.js';
 import { buildMonthCalendar, buildPaymentForecast } from '../payments.js';
 import { createPaymentRow } from '../components/paymentRow.js';
-import { paymentsCount } from '../labels.js';
+import { paymentsCount, saveFailureMessage } from '../labels.js';
 
 function pad2(value) {
   return String(value).padStart(2, '0');
@@ -269,9 +269,9 @@ export function createCalendar(app) {
 
     if (action === 'delete-payment') {
       if (!window.confirm('Удалить плановый платёж? Уже оплаченные операции останутся в журнале.')) return;
-      const saved = app.actions.deletePlannedPayment(planId);
-      if (!saved) {
-        app.toast('Не удалось удалить платёж');
+      const result = app.actions.deletePlannedPayment(planId);
+      if (!result.ok) {
+        app.toast(saveFailureMessage(result.reason));
         return;
       }
       app.toast('Платёж удалён');
@@ -280,9 +280,9 @@ export function createCalendar(app) {
 
     try {
       if (action === 'pay-payment') {
-        const saved = app.actions.payPlannedPayment(planId, date);
-        if (!saved) {
-          app.toast('Не удалось сохранить оплату');
+        const result = app.actions.payPlannedPayment(planId, date);
+        if (!result.ok) {
+          app.toast(saveFailureMessage(result.reason));
           return;
         }
         app.toast('Платёж оплачен, операция добавлена');
@@ -290,9 +290,9 @@ export function createCalendar(app) {
       }
 
       if (action === 'skip-payment') {
-        const saved = app.actions.skipPlannedPayment(planId, date);
-        if (!saved) {
-          app.toast('Не удалось пропустить платёж');
+        const result = app.actions.skipPlannedPayment(planId, date);
+        if (!result.ok) {
+          app.toast(saveFailureMessage(result.reason));
           return;
         }
         app.toast('Платёж пропущен');
@@ -300,9 +300,9 @@ export function createCalendar(app) {
       }
 
       if (action === 'restore-payment') {
-        const saved = app.actions.restorePlannedPayment(planId, date);
-        if (!saved) {
-          app.toast('Не удалось вернуть платёж');
+        const result = app.actions.restorePlannedPayment(planId, date);
+        if (!result.ok) {
+          app.toast(saveFailureMessage(result.reason));
           return;
         }
         app.toast('Платёж возвращён в ожидание');

@@ -204,11 +204,11 @@ const actions = {
   },
 
   updateSettings(patch) {
-    const saved = store.commit((state) => {
+    const result = store.commit((state) => {
       state.settings = { ...state.settings, ...patch };
     });
-    if ('theme' in patch) applyTheme();
-    return saved;
+    if (result.ok && 'theme' in patch) applyTheme();
+    return result;
   },
 
   addAccount({ name, kind, openingBalance }) {
@@ -283,14 +283,17 @@ const actions = {
   async importFile(file) {
     const next = await storage.parseImportFile(file);
     next.updatedAt = new Date().toISOString();
-    store.replace(next, { persist: true });
-    applyTheme();
+    const result = store.replace(next, { persist: true });
+    if (result.ok) applyTheme();
+    return result;
   },
 
   reset() {
-    store.replace(createSeedState(), { persist: true });
+    const result = store.replace(createSeedState(), { persist: true });
+    if (!result.ok) return result;
     storage.clearMeta();
     applyTheme();
+    return result;
   },
 
   async exportData() {
@@ -341,7 +344,9 @@ store.subscribe(() => router.refresh());
 window.addEventListener('storage', (event) => {
   if (event.key !== storage.KEY) return;
   const next = storage.readState();
-  if (!next || next.updatedAt === store.getState().updatedAt) return;
+  // Ревизия точнее даты: две записи в одну миллисекунду не должны
+  // считаться одной и той же.
+  if (!next || next.rev === store.getState().rev) return;
   store.replace(next);
   applyTheme();
   toast('Данные обновлены в другой вкладке');

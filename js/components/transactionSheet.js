@@ -8,6 +8,7 @@ import {
   todayISO,
 } from '../format.js';
 import { accountBalance } from '../reports/balanceSheet.js';
+import { saveFailureMessage } from '../labels.js';
 
 /**
  * Модальная форма операции. Живёт в <dialog> вне экранов;
@@ -281,9 +282,9 @@ export function createTransactionSheet(app, { dashboard = null, transactions = n
       note: refs.note.value.trim(),
     };
 
-    let saved = false;
+    let result;
     try {
-      saved = mode === 'edit'
+      result = mode === 'edit'
         ? app.actions.updateTransaction(editing.id, payload)
         : app.actions.addTransaction(payload);
     } catch (error) {
@@ -292,8 +293,10 @@ export function createTransactionSheet(app, { dashboard = null, transactions = n
       return;
     }
 
-    if (!saved) {
-      showError('Не удалось сохранить: возможно, закончилось место в localStorage.');
+    if (!result.ok) {
+      // Форма остаётся открытой с введёнными данными: пользователь может
+      // повторить действие, в том числе после изменения в другой вкладке.
+      showError(saveFailureMessage(result.reason));
       return;
     }
 

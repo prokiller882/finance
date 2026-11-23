@@ -53,3 +53,14 @@ export const TX_TYPE_LABELS = {
   income: 'Доход',
   transfer: 'Перевод',
 };
+
+const SAVE_FAILURE_MESSAGES = {
+  invalid: 'Не удалось сохранить: проверьте данные',
+  stale: 'Данные изменились в другой вкладке — повторите действие',
+  quota: 'Не удалось сохранить: в браузере закончилось место',
+};
+
+/** Единый текст тоста для причин сбоя сохранения. */
+export function saveFailureMessage(reason) {
+  return SAVE_FAILURE_MESSAGES[reason] ?? 'Не удалось сохранить данные';
+}

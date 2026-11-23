@@ -7,7 +7,7 @@ import {
 } from '../format.js';
 import { filterJournalTransactions } from '../journal.js';
 import { createTransactionRow } from '../components/transactionRow.js';
-import { operationsCount } from '../labels.js';
+import { operationsCount, saveFailureMessage } from '../labels.js';
 
 export function createTransactions(app) {
   let monthEl;
@@ -162,9 +162,9 @@ export function createTransactions(app) {
         if (!button) return;
         if (!window.confirm('Удалить операцию?')) return;
 
-        const saved = app.actions.deleteTransaction(button.dataset.id);
-        if (!saved) {
-          app.toast('Не удалось удалить операцию');
+        const result = app.actions.deleteTransaction(button.dataset.id);
+        if (!result.ok) {
+          app.toast(saveFailureMessage(result.reason));
           return;
         }
         app.toast('Операция удалена');

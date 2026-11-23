@@ -10,7 +10,7 @@ import {
 import { accountBalance } from '../reports/balanceSheet.js';
 import { buildDashboardOverview } from '../reports/overview.js';
 import { createTransactionRow } from '../components/transactionRow.js';
-import { accountSubtitle, PAYMENT_STATUS_LABELS } from '../labels.js';
+import { accountSubtitle, PAYMENT_STATUS_LABELS, saveFailureMessage } from '../labels.js';
 import { buildUpcomingPayments, paymentAmount, paymentTitle } from '../payments.js';
 
 export function createDashboard(app) {
@@ -178,9 +178,9 @@ export function createDashboard(app) {
         if (!button) return;
         if (!window.confirm('Удалить операцию?')) return;
 
-        const saved = app.actions.deleteTransaction(button.dataset.id);
-        if (!saved) {
-          app.toast('Не удалось удалить операцию');
+        const result = app.actions.deleteTransaction(button.dataset.id);
+        if (!result.ok) {
+          app.toast(saveFailureMessage(result.reason));
           return;
         }
         app.toast('Операция удалена');

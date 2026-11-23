@@ -1,7 +1,7 @@
 import { $, el, clear, fillSelect, icon } from '../dom.js';
 import { formatAmountInput, formatMoney, parseAmount } from '../format.js';
 import { accountBalance } from '../reports/balanceSheet.js';
-import { ACCOUNT_KINDS, accountSubtitle } from '../labels.js';
+import { ACCOUNT_KINDS, accountSubtitle, saveFailureMessage } from '../labels.js';
 import { accountHasOperations, accountHasPlannedPayments, normalizeAccountInput } from '../accounts.js';
 import { daysSince, ensurePersistentStorage, isStoragePersisted } from '../pwa.js';
 
@@ -243,9 +243,9 @@ export function createSettings(app) {
       }
 
       try {
-        const saved = app.actions.updateAccount(account.id, normalized);
-        if (!saved) {
-          app.toast('Не удалось сохранить счёт');
+        const result = app.actions.updateAccount(account.id, normalized);
+        if (!result.ok) {
+          app.toast(saveFailureMessage(result.reason));
           return;
         }
       } catch (error) {
@@ -260,9 +260,9 @@ export function createSettings(app) {
     }
 
     try {
-      const saved = app.actions.addAccount(normalized);
-      if (!saved) {
-        app.toast('Не удалось сохранить счёт');
+      const result = app.actions.addAccount(normalized);
+      if (!result.ok) {
+        app.toast(saveFailureMessage(result.reason));
         return;
       }
     } catch (error) {
@@ -299,9 +299,9 @@ export function createSettings(app) {
     }
 
     try {
-      const saved = app.actions.addCategory({ name, kind });
-      if (!saved) {
-        app.toast('Не удалось сохранить категорию');
+      const result = app.actions.addCategory({ name, kind });
+      if (!result.ok) {
+        app.toast(saveFailureMessage(result.reason));
         return;
       }
     } catch (error) {
@@ -323,7 +323,11 @@ export function createSettings(app) {
     }
 
     try {
-      await app.actions.importFile(file);
+      const result = await app.actions.importFile(file);
+      if (!result.ok) {
+        app.toast(saveFailureMessage(result.reason));
+        return;
+      }
       resetAccountEdit();
       app.toast('Данные импортированы');
     } catch (error) {
@@ -361,11 +365,19 @@ export function createSettings(app) {
       fillSelect(accountKind, ACCOUNT_KINDS);
 
       currencySelect.addEventListener('change', () => {
-        app.actions.updateSettings({ currency: currencySelect.value });
+        const result = app.actions.updateSettings({ currency: currencySelect.value });
+        if (!result.ok) {
+          currencySelect.value = app.state.settings.currency;
+          app.toast(saveFailureMessage(result.reason));
+        }
       });
 
       themeSelect.addEventListener('change', () => {
-        app.actions.updateSettings({ theme: themeSelect.value });
+        const result = app.actions.updateSettings({ theme: themeSelect.value });
+        if (!result.ok) {
+          themeSelect.value = app.state.settings.theme;
+          app.toast(saveFailureMessage(result.reason));
+        }
       });
 
       accountForm.addEventListener('submit', onSubmitAccount);
@@ -382,8 +394,8 @@ export function createSettings(app) {
 
         const toggle = event.target.closest('[data-action="toggle-account"]');
         if (toggle) {
-          const saved = app.actions.toggleAccount(toggle.dataset.id);
-          if (!saved) app.toast('Не удалось сохранить изменения');
+          const result = app.actions.toggleAccount(toggle.dataset.id);
+          if (!result.ok) app.toast(saveFailureMessage(result.reason));
           return;
         }
 
@@ -415,9 +427,9 @@ export function createSettings(app) {
         }
 
         try {
-          const saved = app.actions.deleteAccount(account.id, { allowNonZero: balance !== 0 });
-          if (!saved) {
-            app.toast('Не удалось удалить счёт');
+          const result = app.actions.deleteAccount(account.id, { allowNonZero: balance !== 0 });
+          if (!result.ok) {
+            app.toast(saveFailureMessage(result.reason));
             return;
           }
         } catch (error) {
@@ -435,9 +447,9 @@ export function createSettings(app) {
         const category = app.state.categories.find((item) => item.id === button.dataset.id);
         if (!category) return;
         if (!window.confirm(`Удалить категорию «${category.name}»? Операции и плановые платежи останутся без категории, связанные бюджеты будут удалены.`)) return;
-        const saved = app.actions.deleteCategory(button.dataset.id);
-        if (!saved) {
-          app.toast('Не удалось удалить категорию');
+        const result = app.actions.deleteCategory(button.dataset.id);
+        if (!result.ok) {
+          app.toast(saveFailureMessage(result.reason));
           return;
         }
         app.toast('Категория удалена');
@@ -463,7 +475,11 @@ export function createSettings(app) {
 
       $('#reset-btn', root).addEventListener('click', () => {
         if (!window.confirm('Удалить все операции, счета, категории, бюджеты и плановые платежи без возможности восстановления?')) return;
-        app.actions.reset();
+        const result = app.actions.reset();
+        if (!result.ok) {
+          app.toast(saveFailureMessage(result.reason));
+          return;
+        }
         resetAccountEdit();
         renderBackupStatus();
         app.toast('Данные сброшены');

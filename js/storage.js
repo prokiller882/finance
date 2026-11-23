@@ -76,6 +76,9 @@ export function migrate(data) {
 
   return {
     schemaVersion: SCHEMA_VERSION,
+    // Старые экспорты не знают о ревизии; отсутствие — это 0.
+    // Невалидное значение не подменяем, чтобы validateState его показал.
+    rev: data.rev ?? 0,
     updatedAt,
     settings: {
       ...settings,
@@ -177,6 +180,9 @@ export function validateState(state) {
   }
   if (!isISODateTime(state.updatedAt)) {
     addError('updatedAt', 'Некорректная дата обновления данных.');
+  }
+  if (!Number.isSafeInteger(state.rev) || state.rev < 0) {
+    addError('rev', 'Номер ревизии должен быть неотрицательным целым числом.');
   }
 
   if (!isPlainObject(state.settings)) {
@@ -439,14 +445,43 @@ export function readState() {
   }
 }
 
+/**
+ * Ревизия, которая лежит в localStorage. Нечитаемые и нецелые данные
+ * считаются отсутствием записи: старая копия не должна блокировать сохранение.
+ * @returns {number | null}
+ */
+export function readStoredRev() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const rev = isPlainObject(parsed) ? parsed.rev : null;
+    return Number.isSafeInteger(rev) && rev >= 0 ? rev : null;
+  } catch {
+    return null;
+  }
+}
+
+function isQuotaError(error) {
+  return error?.name === 'QuotaExceededError'
+    || error?.name === 'NS_ERROR_DOM_QUOTA_REACHED'
+    || error?.code === 22
+    || error?.code === 1014;
+}
+
+/**
+ * Единственная точка записи состояния.
+ * @returns {{ ok: true } | { ok: false, reason: 'invalid' | 'quota' }}
+ */
 export function saveState(state) {
   try {
     validateState(state);
     localStorage.setItem(KEY, JSON.stringify(state));
-    return true;
+    return { ok: true };
   } catch (error) {
     console.error('Не удалось сохранить данные в localStorage', error);
-    return false;
+    if (isQuotaError(error)) return { ok: false, reason: 'quota' };
+    return { ok: false, reason: 'invalid' };
   }
 }
 

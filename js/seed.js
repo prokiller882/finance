@@ -13,6 +13,7 @@ export function createSeedState() {
 
   return {
     schemaVersion: SCHEMA_VERSION,
+    rev: 0,
     updatedAt: new Date().toISOString(),
     settings: { currency: 'RUB', theme: 'system' },
     accounts: [

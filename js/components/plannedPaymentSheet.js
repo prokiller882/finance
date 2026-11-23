@@ -8,6 +8,7 @@ import {
   todayISO,
 } from '../format.js';
 import { accountBalance } from '../reports/balanceSheet.js';
+import { saveFailureMessage } from '../labels.js';
 
 /**
  * Модальная форма планового платежа. Живёт в <dialog> вне экранов;
@@ -260,9 +261,9 @@ export function createPlannedPaymentSheet(app, { calendar = null } = {}) {
       return;
     }
 
-    let saved = false;
+    let result;
     try {
-      saved = mode === 'edit'
+      result = mode === 'edit'
         ? app.actions.updatePlannedPayment(editing.id, payload)
         : app.actions.addPlannedPayment(payload);
     } catch (error) {
@@ -271,8 +272,9 @@ export function createPlannedPaymentSheet(app, { calendar = null } = {}) {
       return;
     }
 
-    if (!saved) {
-      showError('Не удалось сохранить: возможно, закончилось место в localStorage.');
+    if (!result.ok) {
+      // Форма остаётся открытой: данные не потеряны, можно повторить.
+      showError(saveFailureMessage(result.reason));
       return;
     }
 
