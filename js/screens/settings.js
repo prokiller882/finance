@@ -26,8 +26,14 @@ export function createSettings(app) {
   let exportButton;
   let backupStatus;
   let storageStatus;
+  let migrationCard;
+  let migrationWarnings;
+  let preV4Card;
 
   let editingAccountId = null;
+  // Предупреждения миграции держим в памяти на время сеанса: отметка
+  // «показано» в метаданных не должна скрывать их в этом же открытии.
+  let shownMigrationWarnings = null;
 
   function resetAccountEdit({ focusRow = false } = {}) {
     const previousId = editingAccountId;
@@ -147,6 +153,40 @@ export function createSettings(app) {
         ]));
       }
     }
+  }
+
+  function renderMigrationWarnings() {
+    if (!migrationCard || !migrationWarnings) return;
+
+    if (shownMigrationWarnings === null) {
+      const meta = app.getBackupMeta();
+      const stored = Array.isArray(meta.migrationWarnings) ? meta.migrationWarnings : [];
+      shownMigrationWarnings = meta.migrationWarningsSeen
+        ? []
+        : stored.filter((item) => item
+          && typeof item.path === 'string'
+          && typeof item.message === 'string');
+      // Показываем один раз: при следующем открытии приложения блок не вернётся.
+      if (shownMigrationWarnings.length) app.actions.acknowledgeMigrationWarnings();
+    }
+
+    clear(migrationWarnings);
+    if (!shownMigrationWarnings.length) {
+      migrationCard.hidden = true;
+      return;
+    }
+
+    for (const warning of shownMigrationWarnings) {
+      migrationWarnings.append(el('li', { class: 'row' }, [
+        el('span', { class: 'row__sub', text: `${warning.path}: ${warning.message}` }),
+      ]));
+    }
+    migrationCard.hidden = false;
+  }
+
+  function renderPreV4Card() {
+    if (!preV4Card) return;
+    preV4Card.hidden = !app.hasPreV4Copy();
   }
 
   function renderBackupStatus() {
@@ -329,6 +369,8 @@ export function createSettings(app) {
         return;
       }
       resetAccountEdit();
+      shownMigrationWarnings = null;
+      renderMigrationWarnings();
       app.toast('Данные импортированы');
     } catch (error) {
       console.error('Не удалось импортировать данные', error);
@@ -361,6 +403,9 @@ export function createSettings(app) {
       exportButton = $('#export-btn', root);
       backupStatus = $('#backup-status', root);
       storageStatus = $('#storage-status', root);
+      migrationCard = $('#migration-card', root);
+      migrationWarnings = $('#migration-warnings', root);
+      preV4Card = $('#pre-v4-card', root);
 
       fillSelect(accountKind, ACCOUNT_KINDS);
 
@@ -473,6 +518,48 @@ export function createSettings(app) {
 
       importInput.addEventListener('change', onImport);
 
+      $('#pre-v4-restore', root)?.addEventListener('click', () => {
+        if (!window.confirm(
+          'Восстановить копию до обновления? Текущие данные будут заменены копией, '
+          + 'созданной до обновления схемы. Копия останется в браузере до удаления.',
+        )) {
+          return;
+        }
+
+        try {
+          const result = app.actions.restorePreV4();
+          if (!result.ok) {
+            app.toast(saveFailureMessage(result.reason));
+            return;
+          }
+        } catch (error) {
+          console.error('Не удалось восстановить копию до обновления', error);
+          app.toast(error instanceof Error ? error.message : 'Не удалось восстановить копию');
+          return;
+        }
+
+        resetAccountEdit();
+        shownMigrationWarnings = null;
+        renderMigrationWarnings();
+        renderPreV4Card();
+        app.toast('Копия до обновления восстановлена');
+      });
+
+      $('#pre-v4-delete', root)?.addEventListener('click', () => {
+        if (!window.confirm(
+          'Удалить копию до обновления? После этого восстановить прежние данные будет нельзя.',
+        )) {
+          return;
+        }
+
+        if (!app.actions.deletePreV4()) {
+          app.toast('Не удалось удалить копию');
+          return;
+        }
+        renderPreV4Card();
+        app.toast('Копия до обновления удалена');
+      });
+
       $('#reset-btn', root).addEventListener('click', () => {
         if (!window.confirm('Удалить все операции, счета, категории, бюджеты и плановые платежи без возможности восстановления?')) return;
         const result = app.actions.reset();
@@ -482,12 +569,16 @@ export function createSettings(app) {
         }
         resetAccountEdit();
         renderBackupStatus();
+        shownMigrationWarnings = [];
+        renderMigrationWarnings();
         app.toast('Данные сброшены');
       });
     },
 
     show() {
       refreshStorageStatus();
+      renderPreV4Card();
+      renderMigrationWarnings();
     },
 
     render() {
@@ -497,6 +588,8 @@ export function createSettings(app) {
       renderAccounts(state);
       renderCategories(state);
       renderBackupStatus();
+      renderPreV4Card();
+      renderMigrationWarnings();
     },
   };
 }

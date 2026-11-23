@@ -14,3 +14,7 @@
   summary: `AGENTS.md` описывает только баннер safe mode, но не тост «перезагрузите страницу» для `forward`/`corrupt` в обычном режиме.
   evidence: Поведение реализовано и покрыто `safe-mode.mjs` (`normal-storage`), но его описание требует правки agent-context файла, что по правилам шага выносится в отдельную задачу.
 
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-3-схема-v4-без-потери-полей.md`
+  summary: `validateState()` не проверяет ссылки `transaction.obligationId`, `plannedPayment.obligationId`, `sourceTransactionId` и уникальность `obligations[].id`.
+  evidence: Поля v4 добавлены в 1.3, но семантика обязательств отложена на эпики 2–5; до появления сущности `obligations` любой импорт с непустым `obligationId` проходит проверку и оставляет висячую ссылку.

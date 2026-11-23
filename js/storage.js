@@ -9,6 +9,7 @@ import {
   Transaction,
   ValidationError,
   DEFAULT_CATEGORY_ICON,
+  anchorDayFor,
   categoryColorFor,
   isISODateTime,
   isNonEmptyString,
@@ -26,6 +27,102 @@ const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
 const CURRENCY_SET = new Set(['RUB', 'USD', 'EUR', 'KZT', 'BYN']);
 const THEME_SET = new Set(['system', 'light', 'dark']);
 const ACCOUNT_KIND_SET = new Set(['cash', 'card', 'bank', 'savings']);
+const RATE_BP_MAX = 10000;
+
+const isBoolean = (value) => typeof value === 'boolean';
+const isNullableString = (value) => value === null || isNonEmptyString(value);
+const isNullableBoolean = (value) => value === null || isBoolean(value);
+const isRateBp = (value) => Number.isSafeInteger(value) && value >= 0 && value <= RATE_BP_MAX;
+const isNullableRateBp = (value) => value === null || isRateBp(value);
+const isNullableMinor = (value) => value === null
+  || (Number.isSafeInteger(value) && value >= 0);
+const isNullableSignedMinor = (value) => value === null || Number.isSafeInteger(value);
+const isAnchorDay = (value) => Number.isInteger(value) && value >= 1 && value <= 31;
+
+/**
+ * Поля схемы v4 и их умолчания. Значение неверной формы заменяется
+ * умолчанием, а путь и причина попадают в `warnings[]`: так миграция
+ * не теряет данные молча и не падает на чужом поле с тем же именем.
+ */
+const V4_ACCOUNT_FIELDS = {
+  savingsRateBp: {
+    default: 0,
+    valid: isRateBp,
+    expected: 'целое число от 0 до 10000',
+  },
+};
+
+const V4_CATEGORY_FIELDS = {
+  system: {
+    default: false,
+    valid: isBoolean,
+    expected: 'true или false',
+  },
+  mark: {
+    default: null,
+    valid: isNullableString,
+    expected: 'строка или null',
+  },
+};
+
+const V4_TRANSACTION_FIELDS = {
+  obligationId: {
+    default: null,
+    valid: isNullableString,
+    expected: 'строка или null',
+  },
+  principal: {
+    default: null,
+    valid: isNullableSignedMinor,
+    expected: 'целое число копеек или null',
+  },
+  interest: {
+    default: null,
+    valid: isNullableMinor,
+    expected: 'неотрицательное целое число копеек или null',
+  },
+  sourceTransactionId: {
+    default: null,
+    valid: isNullableString,
+    expected: 'строка или null',
+  },
+  savingsRateBp: {
+    default: null,
+    valid: isNullableRateBp,
+    expected: 'целое число от 0 до 10000 или null',
+  },
+  skipSavings: {
+    default: null,
+    valid: isNullableBoolean,
+    expected: 'true, false или null',
+  },
+};
+
+const V4_PLAN_FIELDS = {
+  obligationId: {
+    default: null,
+    valid: isNullableString,
+    expected: 'строка или null',
+  },
+  archived: {
+    default: false,
+    valid: isBoolean,
+    expected: 'true или false',
+  },
+  anchorDay: {
+    default: null,
+    valid: isAnchorDay,
+    expected: 'число от 1 до 31',
+  },
+};
+
+const V4_OBLIGATION_FIELDS = {
+  archived: {
+    default: false,
+    valid: isBoolean,
+    expected: 'true или false',
+  },
+};
 
 export class StorageError extends Error {
   constructor(code, message, details = null) {
@@ -40,9 +137,49 @@ function fail(code, message, details = null) {
   throw new StorageError(code, message, details);
 }
 
+/** Заполняет поля v4, сохраняя неизвестные ключи сущности. */
+function applyV4Fields(source, fields, path, warnings, defaults = {}) {
+  const next = { ...source };
+
+  for (const [field, rule] of Object.entries(fields)) {
+    const fallback = Object.prototype.hasOwnProperty.call(defaults, field)
+      ? defaults[field]
+      : rule.default;
+
+    if (next[field] === undefined) {
+      next[field] = fallback;
+      continue;
+    }
+
+    if (!rule.valid(next[field])) {
+      warnings.push({
+        path: `${path}.${field}`,
+        message: `Неожиданное значение: ожидалось ${rule.expected}. Подставлено значение по умолчанию.`,
+      });
+      next[field] = fallback;
+    }
+  }
+
+  return next;
+}
+
+/** Раздел v4, которого не было в старых схемах: отсутствие — это пустой список. */
+function v4Array(value, path, warnings) {
+  if (Array.isArray(value)) return value;
+  if (value !== undefined && value !== null) {
+    warnings.push({
+      path,
+      message: 'Раздел должен быть массивом. Подставлен пустой список.',
+    });
+  }
+  return [];
+}
+
 /**
  * Приводит данные к текущей схеме. Миграция намеренно не проверяет ссылки:
  * это делает validateState(), чтобы повреждённый файл не был принят частично.
+ * Неизвестные поля и верхнеуровневые ключи сохраняются как есть.
+ * @returns {{ state: object, warnings: Array<{ path: string, message: string }> }}
  */
 export function migrate(data) {
   if (!isPlainObject(data)) {
@@ -71,11 +208,14 @@ export function migrate(data) {
     fail('INVALID_STATE', 'Раздел вхождений платежей должен быть массивом.');
   }
 
+  const warnings = [];
   const now = new Date().toISOString();
   const settings = isPlainObject(data.settings) ? data.settings : {};
   const updatedAt = isISODateTime(data.updatedAt) ? data.updatedAt : now;
 
-  return {
+  const state = {
+    // Неизвестные верхнеуровневые ключи переживают миграцию и экспорт.
+    ...data,
     schemaVersion: SCHEMA_VERSION,
     // Старые экспорты не знают о ревизии; отсутствие — это 0.
     // Невалидное значение не подменяем, чтобы validateState его показал.
@@ -86,29 +226,31 @@ export function migrate(data) {
       currency: settings.currency ?? 'RUB',
       theme: settings.theme ?? 'system',
     },
-    accounts: data.accounts.map((account) => {
+    accounts: data.accounts.map((account, index) => {
       const source = isPlainObject(account) ? account : {};
-      return {
+      const next = {
         ...source,
         archived: source.archived ?? false,
         openingBalance: source.openingBalance ?? 0,
         kind: source.kind ?? 'cash',
         name: typeof source.name === 'string' ? source.name.trim() : source.name,
       };
+      return applyV4Fields(next, V4_ACCOUNT_FIELDS, `accounts[${index}]`, warnings);
     }),
-    categories: data.categories.map((category) => {
+    categories: data.categories.map((category, index) => {
       const source = isPlainObject(category) ? category : {};
-      return {
+      const next = {
         ...source,
         name: typeof source.name === 'string' ? source.name.trim() : source.name,
         color: source.color || categoryColorFor(source.name || ''),
         icon: source.icon || DEFAULT_CATEGORY_ICON,
       };
+      return applyV4Fields(next, V4_CATEGORY_FIELDS, `categories[${index}]`, warnings);
     }),
-    transactions: data.transactions.map((transaction) => {
+    transactions: data.transactions.map((transaction, index) => {
       const source = isPlainObject(transaction) ? transaction : {};
       const createdAt = source.createdAt || source.updatedAt || updatedAt;
-      return {
+      const next = {
         ...source,
         note: typeof source.note === 'string' ? source.note.trim() : (source.note ?? ''),
         toAccountId: source.toAccountId ?? null,
@@ -116,15 +258,16 @@ export function migrate(data) {
         createdAt,
         updatedAt: source.updatedAt || createdAt,
       };
+      return applyV4Fields(next, V4_TRANSACTION_FIELDS, `transactions[${index}]`, warnings);
     }),
     budgets: (Array.isArray(data.budgets) ? data.budgets : []).map((budget) => (
       isPlainObject(budget) ? { ...budget } : {}
     )),
-    plannedPayments: (Array.isArray(data.plannedPayments) ? data.plannedPayments : []).map((plan) => {
+    plannedPayments: (Array.isArray(data.plannedPayments) ? data.plannedPayments : []).map((plan, index) => {
       const source = isPlainObject(plan) ? plan : {};
       const recurrence = source.recurrence ?? 'none';
       const createdAt = source.createdAt || source.updatedAt || updatedAt;
-      return {
+      const next = {
         ...source,
         type: source.type,
         amount: source.amount,
@@ -137,6 +280,9 @@ export function migrate(data) {
         createdAt,
         updatedAt: source.updatedAt || createdAt,
       };
+      return applyV4Fields(next, V4_PLAN_FIELDS, `plannedPayments[${index}]`, warnings, {
+        anchorDay: anchorDayFor(next.startDate),
+      });
     }),
     paymentOccurrences: (Array.isArray(data.paymentOccurrences) ? data.paymentOccurrences : []).map((occurrence) => {
       const source = isPlainObject(occurrence) ? occurrence : {};
@@ -149,7 +295,32 @@ export function migrate(data) {
         updatedAt: source.updatedAt || createdAt,
       };
     }),
+    obligations: v4Array(data.obligations, 'obligations', warnings).map((obligation, index) => {
+      if (!isPlainObject(obligation)) {
+        warnings.push({
+          path: `obligations[${index}]`,
+          message: 'Обязательство должно быть объектом. Подставлена пустая запись.',
+        });
+      }
+      const source = isPlainObject(obligation) ? obligation : {};
+      return applyV4Fields(source, V4_OBLIGATION_FIELDS, `obligations[${index}]`, warnings);
+    }),
+    obligationAdjustments: v4Array(
+      data.obligationAdjustments,
+      'obligationAdjustments',
+      warnings,
+    ).map((adjustment, index) => {
+      if (!isPlainObject(adjustment)) {
+        warnings.push({
+          path: `obligationAdjustments[${index}]`,
+          message: 'Корректировка обязательства должна быть объектом. Подставлена пустая запись.',
+        });
+      }
+      return isPlainObject(adjustment) ? { ...adjustment } : {};
+    }),
   };
+
+  return { state, warnings };
 }
 
 function entityFromJSON(Entity, raw, path, errors) {
@@ -231,6 +402,9 @@ export function validateState(state) {
       }
       if (typeof account.archived !== 'boolean') {
         addError(`${path}.archived`, 'Признак архива должен быть boolean.');
+      }
+      if (!isRateBp(account.savingsRateBp)) {
+        addError(`${path}.savingsRateBp`, 'Норма сбережений должна быть целым числом от 0 до 10000.');
       }
     });
   }
@@ -413,6 +587,29 @@ export function validateState(state) {
     });
   }
 
+  if (!Array.isArray(state.obligations)) {
+    addError('obligations', 'Раздел обязательств должен быть массивом.');
+  } else {
+    state.obligations.forEach((obligation, index) => {
+      const path = `obligations[${index}]`;
+      if (!isPlainObject(obligation)) {
+        addError(path, 'Обязательство должно быть объектом.');
+      } else if (typeof obligation.archived !== 'boolean') {
+        addError(`${path}.archived`, 'Признак архива обязательства должен быть boolean.');
+      }
+    });
+  }
+
+  if (!Array.isArray(state.obligationAdjustments)) {
+    addError('obligationAdjustments', 'Раздел корректировок обязательств должен быть массивом.');
+  } else {
+    state.obligationAdjustments.forEach((adjustment, index) => {
+      if (!isPlainObject(adjustment)) {
+        addError(`obligationAdjustments[${index}]`, 'Корректировка обязательства должна быть объектом.');
+      }
+    });
+  }
+
   if (errors.length) {
     fail('INVALID_STATE', `Данные не прошли проверку: ${errors[0].message}`, errors);
   }
@@ -438,7 +635,9 @@ function backupCorrupt(raw) {
  * Читает состояние и сообщает, что с ним на самом деле.
  * `forward` определяется по `schemaVersion` до миграции, поэтому более новая
  * копия никогда не попадает в миграцию и не переписывается.
- * @returns {{ status: 'empty' | 'ok' | 'forward' | 'corrupt', state?: object, raw?: string | null, version?: number | null }}
+ * `sourceVersion` — версия исходного файла, `warnings` — поля v4, которые
+ * пришлось заменить умолчаниями.
+ * @returns {{ status: 'empty' | 'ok' | 'forward' | 'corrupt', state?: object, raw?: string | null, version?: number | null, sourceVersion?: number | null, warnings?: Array<{ path: string, message: string }> }}
  */
 export function readState() {
   let raw = null;
@@ -447,10 +646,10 @@ export function readState() {
   } catch (error) {
     // Ошибка чтения — это не «пусто»: иначе старт посеял бы seed поверх данных.
     console.error('Не удалось прочитать данные из localStorage', error);
-    return { status: 'corrupt', raw: null, version: null };
+    return { status: 'corrupt', raw: null, version: null, sourceVersion: null };
   }
 
-  if (raw === null) return { status: 'empty', raw: null, version: null };
+  if (raw === null) return { status: 'empty', raw: null, version: null, sourceVersion: null };
 
   let parsed;
   try {
@@ -458,7 +657,7 @@ export function readState() {
   } catch (error) {
     console.error('Не удалось разобрать данные, сохраняю повреждённую копию', error);
     backupCorrupt(raw);
-    return { status: 'corrupt', raw, version: null };
+    return { status: 'corrupt', raw, version: null, sourceVersion: null };
   }
 
   const hasVersion = isPlainObject(parsed)
@@ -467,24 +666,32 @@ export function readState() {
 
   // Версия выше текущей — данные новее приложения. Проверка идёт до миграции.
   if (Number.isInteger(version) && version > SCHEMA_VERSION) {
-    return { status: 'forward', raw, version };
+    return { status: 'forward', raw, version, sourceVersion: version };
   }
 
   // Версия указана, но не целым числом: такой файл не мог создать сам трекер.
   if (hasVersion && !Number.isInteger(version)) {
     console.error('Некорректный номер версии схемы данных');
     backupCorrupt(raw);
-    return { status: 'corrupt', raw, version: null };
+    return { status: 'corrupt', raw, version: null, sourceVersion: null };
   }
 
   try {
-    const migrated = migrate(parsed);
-    validateState(migrated);
-    return { status: 'ok', state: migrated, raw, version: migrated.schemaVersion };
+    const { state, warnings } = migrate(parsed);
+    validateState(state);
+    return {
+      status: 'ok',
+      state,
+      raw,
+      version: state.schemaVersion,
+      // Отсутствие версии исторически означает v1.
+      sourceVersion: Number.isInteger(version) ? version : 1,
+      warnings,
+    };
   } catch (error) {
     console.error('Данные не прошли проверку, сохраняю повреждённую копию', error);
     backupCorrupt(raw);
-    return { status: 'corrupt', raw, version: null };
+    return { status: 'corrupt', raw, version: null, sourceVersion: null };
   }
 }
 
@@ -529,15 +736,55 @@ export function saveState(state) {
 }
 
 /**
+ * Создаёт копию данных до схемы v4 перед первой записью v4.
+ * Копия никогда не перезаписывается: первая — самая ценная.
+ * @returns {'saved' | 'present' | 'skip' | 'no-space'}
+ */
+function ensurePreV4Copy(raw) {
+  if (typeof raw !== 'string') return 'skip';
+
+  try {
+    if (localStorage.getItem(PRE_V4_KEY) !== null) return 'present';
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return 'skip';
+    }
+    if (!isPlainObject(parsed)) return 'skip';
+
+    const hasVersion = Object.prototype.hasOwnProperty.call(parsed, 'schemaVersion');
+    const version = hasVersion ? parsed.schemaVersion : 1;
+    if (!Number.isInteger(version) || version >= SCHEMA_VERSION) return 'skip';
+
+    localStorage.setItem(PRE_V4_KEY, raw);
+    return 'saved';
+  } catch (error) {
+    // Без копии v4 писать нельзя: иначе откат к прежней версии невозможен.
+    console.warn('Не удалось сохранить копию данных до обновления', error);
+    return 'no-space';
+  }
+}
+
+/**
  * Стартовое чтение. Seed сеется только при отсутствии ключа: `forward` и
  * `corrupt` не перезаписываются и открывают безопасный режим.
- * На `ok` миграция фиксируется записью, чтобы не выполнять её при каждом старте.
+ * На `ok` миграция фиксируется записью, чтобы не выполнять её при каждом старте;
+ * перед первой записью v4 сырой файл уходит в `PRE_V4_KEY`.
+ * Если копия не помещается, статус `no-space`: живой ключ остаётся прежним.
  */
 export function loadState() {
   const boot = readState();
 
   if (boot.status === 'ok') {
-    saveState(boot.state);
+    if (ensurePreV4Copy(boot.raw) === 'no-space') {
+      return { ...boot, status: 'no-space' };
+    }
+    const saved = saveState(boot.state);
+    // Копия уже есть, но записать v4 не удалось: живой ключ остаётся прежним,
+    // поэтому обычный режим не поднимаем.
+    if (!saved.ok) return { ...boot, status: 'no-space' };
     return boot;
   }
 
@@ -546,7 +793,14 @@ export function loadState() {
   const seeded = createSeedState();
   // Сбой записи не блокирует старт: приложение работает на состоянии в памяти.
   saveState(seeded);
-  return { status: 'empty', state: seeded, raw: null, version: seeded.schemaVersion };
+  return {
+    status: 'empty',
+    state: seeded,
+    raw: null,
+    version: seeded.schemaVersion,
+    sourceVersion: null,
+    warnings: [],
+  };
 }
 
 /**
@@ -661,8 +915,22 @@ export function readPreV4Raw() {
   }
 }
 
-/** Разбирает и полностью проверяет текст копии до любой записи в хранилище. */
-export function parseImportText(text) {
+/** Удаляет копию до обновления. Только по явному подтверждению в настройках. */
+export function removePreV4Copy() {
+  try {
+    localStorage.removeItem(PRE_V4_KEY);
+    return true;
+  } catch (error) {
+    console.warn('Не удалось удалить копию данных до обновления', error);
+    return false;
+  }
+}
+
+/**
+ * Разбирает и полностью проверяет текст копии до любой записи в хранилище.
+ * Необязательный `warnings` собирает предупреждения миграции для показа.
+ */
+export function parseImportText(text, warnings = null) {
   if (typeof text !== 'string' || !text.trim()) {
     fail('INVALID_STATE', 'Файл пуст.');
   }
@@ -674,12 +942,13 @@ export function parseImportText(text) {
     fail('PARSE_ERROR', 'Файл не является корректным JSON.', error);
   }
 
-  const migrated = migrate(parsed);
-  validateState(migrated);
-  return migrated;
+  const result = migrate(parsed);
+  validateState(result.state);
+  if (Array.isArray(warnings)) warnings.push(...result.warnings);
+  return result.state;
 }
 
-export async function parseImportFile(file) {
+export async function parseImportFile(file, warnings = null) {
   if (!file || typeof file.text !== 'function') {
     fail('INVALID_STATE', 'Файл не выбран.');
   }
@@ -694,5 +963,5 @@ export async function parseImportFile(file) {
     fail('PARSE_ERROR', 'Не удалось прочитать файл.', error);
   }
 
-  return parseImportText(text);
+  return parseImportText(text, warnings);
 }

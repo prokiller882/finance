@@ -3,6 +3,7 @@ export {
   PlannedPayment,
   PLANNED_PAYMENT_TYPES,
   RECURRENCE_TYPES,
+  anchorDayFor,
 } from './plannedPayment.js';
 export { PaymentOccurrence, OCCURRENCE_STATUSES } from './paymentOccurrence.js';
 export {

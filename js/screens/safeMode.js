@@ -14,6 +14,12 @@ const TEXTS = {
     descriptionNoRaw: 'Файл в браузере не удалось прочитать. Данных для скачивания нет — '
       + 'восстановите резервную копию или начните заново.',
   },
+  'no-space': {
+    title: 'Не хватает места для копии данных',
+    description: 'Перед обновлением приложение сохраняет копию текущих данных, но в браузере '
+      + 'не хватило места. Данные не изменены. Освободите место на устройстве и перезагрузите '
+      + 'страницу. Если это не поможет, сохраните исходные данные и восстановите их позже.',
+  },
 };
 
 const BANNER_TEXT = 'Данные изменились в другой вкладке. Этот экран не обновился сам — '
@@ -33,7 +39,7 @@ function messageOf(error) {
  * Не импортирует storage.js и store.js — все операции приходят через source.
  *
  * source: {
- *   status: 'forward' | 'corrupt',
+ *   status: 'forward' | 'corrupt' | 'no-space',
  *   version: number | null,
  *   raw: string | null,
  *   preV4Raw: string | null,
@@ -243,12 +249,16 @@ export function createSafeMode(source) {
     });
 
     const importControls = createImportControls();
-    const actions = [
-      ...importControls,
-      typeof source.preV4Raw === 'string' ? createRestoreButton() : null,
-      typeof source.raw === 'string' ? createExportButton() : null,
-      createResetButton(),
-    ].filter(Boolean);
+    // Без места под копию доступна только выгрузка: импорт и сброс здесь
+    // сами потребуют записи и не решают проблему пользователя.
+    const actions = source.status === 'no-space'
+      ? [typeof source.raw === 'string' ? createExportButton() : null].filter(Boolean)
+      : [
+        ...importControls,
+        typeof source.preV4Raw === 'string' ? createRestoreButton() : null,
+        typeof source.raw === 'string' ? createExportButton() : null,
+        createResetButton(),
+      ].filter(Boolean);
 
     buttons = actions.filter((node) => node.tagName === 'BUTTON');
 

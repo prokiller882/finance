@@ -37,6 +37,10 @@ export class Category {
     this.kind = data.kind;
     this.color = data.color;
     this.icon = data.icon;
+    // Поля схемы v4. Системные категории и метки пока не используются в UI:
+    // 1.3 добавляет только поля и умолчания, поведение — в следующих эпиках.
+    this.system = data.system ?? false;
+    this.mark = data.mark ?? null;
 
     this.validate();
   }
@@ -47,6 +51,8 @@ export class Category {
       id,
       color: input.color || categoryColorFor(input.name),
       icon: input.icon || DEFAULT_CATEGORY_ICON,
+      system: input.system ?? false,
+      mark: input.mark ?? null,
     });
   }
 
@@ -77,6 +83,18 @@ export class Category {
       'icon',
       'Некорректная иконка категории.',
     );
+    assert(
+      typeof this.system === 'boolean',
+      'category',
+      'system',
+      'Признак системной категории должен быть boolean.',
+    );
+    assert(
+      this.mark === null || isNonEmptyString(this.mark),
+      'category',
+      'mark',
+      'Метка категории должна быть строкой или null.',
+    );
   }
 
   toJSON() {
@@ -86,6 +104,8 @@ export class Category {
       kind: this.kind,
       color: this.color,
       icon: this.icon,
+      system: this.system,
+      mark: this.mark,
     };
   }
 }

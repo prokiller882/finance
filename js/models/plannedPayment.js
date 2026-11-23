@@ -14,6 +14,12 @@ export const RECURRENCE_TYPES = ['none', 'monthly', 'yearly'];
 const TYPE_SET = new Set(PLANNED_PAYMENT_TYPES);
 const RECURRENCE_SET = new Set(RECURRENCE_TYPES);
 
+/** День месяца из YYYY-MM-DD — якорь серии по умолчанию. */
+export function anchorDayFor(date) {
+  if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  return Number(date.slice(8, 10));
+}
+
 /**
  * Плановый платёж: шаблон разового или повторяющегося расхода/дохода.
  * Вхождения не хранятся здесь — они генерируются на чтение из правила.
@@ -33,6 +39,11 @@ export class PlannedPayment {
     this.endDate = data.endDate ?? null;
     this.createdAt = data.createdAt;
     this.updatedAt = data.updatedAt;
+    // Поля схемы v4. anchorDay — настоящий день повторения, startDate — только
+    // первое вхождение; пока его использует только будущее правило серии.
+    this.obligationId = data.obligationId ?? null;
+    this.archived = data.archived ?? false;
+    this.anchorDay = data.anchorDay ?? anchorDayFor(data.startDate);
 
     this.validate();
   }
@@ -52,6 +63,9 @@ export class PlannedPayment {
       endDate: recurrence === 'none' ? null : (input.endDate ?? null),
       createdAt: input.createdAt || now,
       updatedAt: input.updatedAt || now,
+      obligationId: input.obligationId ?? null,
+      archived: input.archived ?? false,
+      anchorDay: input.anchorDay ?? anchorDayFor(input.startDate),
     });
   }
 
@@ -81,6 +95,12 @@ export class PlannedPayment {
       'Некорректная категория платежа.',
     );
     assert(
+      this.obligationId === null || isNonEmptyString(this.obligationId),
+      'plannedPayment',
+      'obligationId',
+      'Некорректная ссылка на обязательство.',
+    );
+    assert(
       typeof this.note === 'string',
       'plannedPayment',
       'note',
@@ -91,6 +111,12 @@ export class PlannedPayment {
       'plannedPayment',
       'startDate',
       'Дата платежа должна быть в формате YYYY-MM-DD.',
+    );
+    assert(
+      Number.isInteger(this.anchorDay) && this.anchorDay >= 1 && this.anchorDay <= 31,
+      'plannedPayment',
+      'anchorDay',
+      'День повторения должен быть числом от 1 до 31.',
     );
     assert(
       RECURRENCE_SET.has(this.recurrence),
@@ -130,6 +156,12 @@ export class PlannedPayment {
       'updatedAt',
       'Некорректная дата изменения платежа.',
     );
+    assert(
+      typeof this.archived === 'boolean',
+      'plannedPayment',
+      'archived',
+      'Признак архива платежа должен быть boolean.',
+    );
   }
 
   toJSON() {
@@ -145,6 +177,9 @@ export class PlannedPayment {
       endDate: this.endDate,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
+      obligationId: this.obligationId,
+      archived: this.archived,
+      anchorDay: this.anchorDay,
     };
   }
 }

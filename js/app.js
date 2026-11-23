@@ -76,12 +76,19 @@ const actions = {
       if (index < 0) throw new Error('Операция не найдена.');
 
       const current = state.transactions[index];
+      // Текущие поля идут первыми: так неизвестные ключи сущности и поля v4
+      // переживают правку, а форма меняет только то, что действительно правит.
       const next = Transaction.create(
-        { ...input, createdAt: current.createdAt },
+        {
+          ...current,
+          ...input,
+          createdAt: current.createdAt,
+          updatedAt: undefined,
+        },
         { id: current.id },
       ).toJSON();
 
-      state.transactions[index] = next;
+      state.transactions[index] = { ...current, ...next };
 
       // Если изменились тип, счёт или дата, оплаченное вхождение больше
       // не соответствует операции и возвращается в ожидание.
@@ -111,11 +118,16 @@ const actions = {
 
       const current = state.plannedPayments[index];
       const next = PlannedPayment.create(
-        { ...input, createdAt: current.createdAt },
+        {
+          ...current,
+          ...input,
+          createdAt: current.createdAt,
+          updatedAt: undefined,
+        },
         { id: current.id },
       ).toJSON();
 
-      state.plannedPayments[index] = next;
+      state.plannedPayments[index] = { ...current, ...next };
 
       // Оплаченные вхождения остаются историей, пропущенные — только если
       // дата всё ещё входит в новую серию.
@@ -221,6 +233,7 @@ const actions = {
         id: newId(),
         ...account,
         archived: false,
+        savingsRateBp: 0,
       });
     });
   },
@@ -284,11 +297,38 @@ const actions = {
   },
 
   async importFile(file) {
-    const next = await storage.parseImportFile(file);
+    const warnings = [];
+    const next = await storage.parseImportFile(file, warnings);
     next.updatedAt = new Date().toISOString();
     const result = store.replace(next, { persist: true });
-    if (result.ok) applyTheme();
+    if (!result.ok) return result;
+    storage.writeMeta({ migrationWarnings: warnings, migrationWarningsSeen: false });
+    applyTheme();
     return result;
+  },
+
+  restorePreV4() {
+    // Копию читаем в момент действия: снимок экрана мог устареть.
+    const raw = storage.readPreV4Raw();
+    if (typeof raw !== 'string') {
+      throw new storage.StorageError('INVALID_STATE', 'Копия до обновления не найдена.');
+    }
+    const warnings = [];
+    const next = storage.parseImportText(raw, warnings);
+    next.updatedAt = new Date().toISOString();
+    const result = store.replace(next, { persist: true });
+    if (!result.ok) return result;
+    storage.writeMeta({ migrationWarnings: warnings, migrationWarningsSeen: false });
+    applyTheme();
+    return result;
+  },
+
+  deletePreV4() {
+    return storage.removePreV4Copy();
+  },
+
+  acknowledgeMigrationWarnings() {
+    return storage.writeMeta({ migrationWarningsSeen: true });
   },
 
   reset() {
@@ -315,6 +355,7 @@ const app = {
   back: () => router?.back(),
   toast,
   getBackupMeta: () => storage.readMeta(),
+  hasPreV4Copy: () => storage.hasPreV4Copy(),
 };
 
 /**
@@ -365,19 +406,21 @@ function startApp(initialState) {
  * Восстановление: временный store существует только на момент записи и
  * сохраняет данные первыми (replace(persist)), затем поднимает обычный режим.
  */
-function recover(next) {
+function recover(next, warnings = []) {
   const temporary = createStore(next);
   const result = temporary.replace(next, { persist: true });
   if (!result.ok) return result;
 
+  storage.writeMeta({ migrationWarnings: warnings, migrationWarningsSeen: false });
   startApp(temporary.getState());
   return { ok: true };
 }
 
 async function recoverFromFile(file) {
-  const next = await storage.parseImportFile(file);
+  const warnings = [];
+  const next = await storage.parseImportFile(file, warnings);
   next.updatedAt = new Date().toISOString();
-  return recover(next);
+  return recover(next, warnings);
 }
 
 async function recoverFromRaw() {
@@ -386,9 +429,10 @@ async function recoverFromRaw() {
   if (typeof raw !== 'string') {
     throw new storage.StorageError('INVALID_STATE', 'Копия до обновления не найдена.');
   }
-  const next = storage.parseImportText(raw);
+  const warnings = [];
+  const next = storage.parseImportText(raw, warnings);
   next.updatedAt = new Date().toISOString();
-  return recover(next);
+  return recover(next, warnings);
 }
 
 async function exportRaw() {
@@ -489,6 +533,14 @@ registerServiceWorker();
 
 const boot = storage.loadState();
 if (boot.status === 'ok' || boot.status === 'empty') {
+  // Предупреждения миграции показываем один раз в настройках; факт показа
+  // живёт в метаданных и переживает перезагрузку.
+  if (Array.isArray(boot.warnings) && boot.warnings.length) {
+    storage.writeMeta({
+      migrationWarnings: boot.warnings,
+      migrationWarningsSeen: false,
+    });
+  }
   startApp(boot.state);
 } else {
   startSafeMode(boot);

@@ -30,6 +30,15 @@ export class Transaction {
     this.date = data.date;
     this.createdAt = data.createdAt;
     this.updatedAt = data.updatedAt;
+    // Поля схемы v4: разбивка платежа по обязательству, источник
+    // сгенерированного перевода и норма сбережений. Значения по умолчанию
+    // null — семантику добавят эпики 2–5.
+    this.obligationId = data.obligationId ?? null;
+    this.principal = data.principal ?? null;
+    this.interest = data.interest ?? null;
+    this.sourceTransactionId = data.sourceTransactionId ?? null;
+    this.savingsRateBp = data.savingsRateBp ?? null;
+    this.skipSavings = data.skipSavings ?? null;
 
     this.validate();
   }
@@ -43,6 +52,12 @@ export class Transaction {
       note: input.note ?? '',
       createdAt: input.createdAt || now,
       updatedAt: input.updatedAt || now,
+      obligationId: input.obligationId ?? null,
+      principal: input.principal ?? null,
+      interest: input.interest ?? null,
+      sourceTransactionId: input.sourceTransactionId ?? null,
+      savingsRateBp: input.savingsRateBp ?? null,
+      skipSavings: input.skipSavings ?? null,
     });
   }
 
@@ -119,6 +134,45 @@ export class Transaction {
       'updatedAt',
       'Некорректная дата изменения операции.',
     );
+    assert(
+      this.obligationId === null || isNonEmptyString(this.obligationId),
+      'transaction',
+      'obligationId',
+      'Некорректная ссылка на обязательство.',
+    );
+    assert(
+      this.principal === null || Number.isSafeInteger(this.principal),
+      'transaction',
+      'principal',
+      'Доля основного долга должна быть целым числом копеек или null.',
+    );
+    assert(
+      this.interest === null || (Number.isSafeInteger(this.interest) && this.interest >= 0),
+      'transaction',
+      'interest',
+      'Проценты должны быть неотрицательным целым числом копеек или null.',
+    );
+    assert(
+      this.sourceTransactionId === null || isNonEmptyString(this.sourceTransactionId),
+      'transaction',
+      'sourceTransactionId',
+      'Некорректная ссылка на операцию-источник.',
+    );
+    assert(
+      this.savingsRateBp === null
+        || (Number.isSafeInteger(this.savingsRateBp)
+          && this.savingsRateBp >= 0
+          && this.savingsRateBp <= 10000),
+      'transaction',
+      'savingsRateBp',
+      'Норма сбережений должна быть целым числом от 0 до 10000 или null.',
+    );
+    assert(
+      this.skipSavings === null || typeof this.skipSavings === 'boolean',
+      'transaction',
+      'skipSavings',
+      'Признак отказа от сбережений должен быть boolean или null.',
+    );
   }
 
   toJSON() {
@@ -133,6 +187,12 @@ export class Transaction {
       date: this.date,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
+      obligationId: this.obligationId,
+      principal: this.principal,
+      interest: this.interest,
+      sourceTransactionId: this.sourceTransactionId,
+      savingsRateBp: this.savingsRateBp,
+      skipSavings: this.skipSavings,
     };
   }
 }

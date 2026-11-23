@@ -303,6 +303,23 @@
             <button class="btn btn--danger" id="reset-btn" type="button">Сбросить всё</button>
           </div>
         </section>
+
+        <section class="card" id="migration-card" hidden>
+          <h2>Данные обновлены</h2>
+          <p class="hint">Некоторые поля имели неожиданный формат — приложение подставило
+            значения по умолчанию. Остальные данные сохранены.</p>
+          <ul class="list list--compact" id="migration-warnings"></ul>
+        </section>
+
+        <section class="card" id="pre-v4-card" hidden>
+          <h2>Копия до обновления</h2>
+          <p class="hint">Перед обновлением схемы приложение сохранило копию данных.
+            Восстановление заменит текущие данные; копия останется, пока вы её не удалите.</p>
+          <div class="btn-row">
+            <button class="btn" id="pre-v4-restore" type="button">Восстановить</button>
+            <button class="btn btn--danger" id="pre-v4-delete" type="button">Удалить копию</button>
+          </div>
+        </section>
       </section>
     </main>
   </div>
