@@ -20,11 +20,12 @@
 - Вход: `index.html` (разметка экранов), `js/app.js` (bootstrap, `actions`, тема),
   `js/router.js` (hash-маршруты и overlays).
 - Состояние: `js/store.js` (`commit()`), `js/storage.js` (ключи, миграции,
-  импорт/экспорт), `js/schema.js` (`SCHEMA_VERSION = 3`).
+  импорт/экспорт, статусы старта), `js/schema.js` (`SCHEMA_VERSION = 3`).
 - Чистые выборки без DOM: `js/journal.js`, `js/payments.js`, `js/recurrence.js`,
   `js/accounts.js`, `js/reports/*`.
 - Экран — `section` в `index.html` + фабрика в `js/screens/`; overlay — компонент
-  в `js/components/`. Пошагово — `docs/extending.md`.
+  в `js/components/`. Безопасный экран — `main#safe-mode` вне шелла и
+  `js/screens/safeMode.js`. Пошагово — `docs/extending.md`.
 - Чек-лист перед сдачей правки — `docs/qa-checklist.md`.
 
 ## Запуск и проверка
@@ -34,7 +35,7 @@
 - В репозитории нет `package.json`: `npm test` не запускается, автотестов в
   репозитории нет.
 - Автотесты на машине разработчика лежат вне репозитория: `cd ~/finance-tests &&
-  ./node-v22.11.0-linux-x64/bin/node <nav|direct|dom|logic|storage|imports>.mjs`.
+  ./node-v22.11.0-linux-x64/bin/node <nav|direct|dom|logic|storage|imports|safe-mode>.mjs`.
   Без этого каталога проверка ручная.
 - Продакшен — GitHub Pages: https://prokiller882.github.io/finance/. После push в
   `main` Pages пересобирает сайт; `.nojekyll` отключает Jekyll.
@@ -108,6 +109,16 @@
 - Тема: `settings.theme` = `light | dark | system`; JS ставит `data-theme` на
   `<html>` и обновляет `meta[name="theme-color"]` из `--color-bg`; `system`
   разрешается в JS.
+- Safe mode: `readState()`/`loadState()` отдают статус `empty | ok | forward |
+  corrupt`; `forward` определяется по `schemaVersion` до миграции, ошибка разбора
+  или проверки — `corrupt`. На `forward`/`corrupt` store и роутер не создаются,
+  шелл и таббар скрыты, тема системная; экран объясняет причину и предлагает
+  экспорт сырых данных, импорт копии, восстановление `pre-v4` и сброс. Непустой
+  ключ на старте не перезаписывается. Импорт и восстановление в статусе `forward`
+  сначала подтверждаются (в предупреждении — имя файла и замена данных более новой
+  версии); в `corrupt` — без confirm. Успех — `replace(persist)` и обычный режим
+  на новом `rev` без перезагрузки. Событие хранилища в safe mode только показывает
+  баннер.
 - Фиксированный таббар перекрывает низ `#app`: при новом fixed-элементе снизу
   пересчитать `--scroll-clearance` и `--toast-bottom`.
 
@@ -131,6 +142,11 @@
   `type` операций не меняется.
 - Импорт всегда подтверждается и заменяет состояние целиком. `AbortError` в
   `shareState()` — отмена: без тоста и без даты копии.
+- `readState()` не глотает ошибку в `empty`: исключение чтения, битый JSON и
+  провал `validateState` — это `corrupt`, иначе `loadState()` посеет seed поверх
+  данных. `finance-tracker:corrupt` хранит первую копию и не перезаписывается;
+  safe mode копии `:corrupt`/`:pre-v4` не удаляет. `PRE_V4_KEY` — общая константа,
+  её обязана переиспользовать схема v4.
 - `localStorage` привязан к origin, а не к пути: проекты на
   `prokiller882.github.io` делят хранилище, у приложения ключ `finance-tracker:v1`.
   Переезд на свой домен требует экспорта/импорта.

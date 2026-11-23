@@ -3,7 +3,7 @@
  * добавьте его в PRECACHE и поднимите версию CACHE, иначе офлайн-режим
  * будет падать на отсутствующем модуле.
  */
-const CACHE = 'finance-shell-v5';
+const CACHE = 'finance-shell-v6';
 const INDEX_URL = new URL('index.html', self.registration.scope).href;
 const SCOPE_PATH = new URL('./', self.location).pathname;
 
@@ -44,6 +44,7 @@ const PRECACHE = [
   './js/screens/calendar.js',
   './js/screens/dashboard.js',
   './js/screens/reports.js',
+  './js/screens/safeMode.js',
   './js/screens/settings.js',
   './js/screens/transactions.js',
   './js/seed.js',

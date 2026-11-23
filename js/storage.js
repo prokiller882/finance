@@ -18,6 +18,7 @@ import {
 export { SCHEMA_VERSION };
 
 export const KEY = 'finance-tracker:v1';
+export const PRE_V4_KEY = 'finance-tracker:pre-v4';
 const META_KEY = 'finance-tracker:meta';
 const CORRUPT_KEY = 'finance-tracker:corrupt';
 const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
@@ -419,29 +420,71 @@ export function validateState(state) {
   return true;
 }
 
+/**
+ * Страховочная копия повреждённых данных. Хранится первая копия: повторная
+ * запись ничего не доказывает, а место в localStorage занимает.
+ */
 function backupCorrupt(raw) {
-  if (!raw) return;
+  if (typeof raw !== 'string') return;
   try {
+    if (localStorage.getItem(CORRUPT_KEY) !== null) return;
     localStorage.setItem(CORRUPT_KEY, raw);
   } catch {
     /* место в localStorage уже занято — копию не сохранить */
   }
 }
 
+/**
+ * Читает состояние и сообщает, что с ним на самом деле.
+ * `forward` определяется по `schemaVersion` до миграции, поэтому более новая
+ * копия никогда не попадает в миграцию и не переписывается.
+ * @returns {{ status: 'empty' | 'ok' | 'forward' | 'corrupt', state?: object, raw?: string | null, version?: number | null }}
+ */
 export function readState() {
   let raw = null;
   try {
     raw = localStorage.getItem(KEY);
-    if (!raw) return null;
+  } catch (error) {
+    // Ошибка чтения — это не «пусто»: иначе старт посеял бы seed поверх данных.
+    console.error('Не удалось прочитать данные из localStorage', error);
+    return { status: 'corrupt', raw: null, version: null };
+  }
 
-    const parsed = JSON.parse(raw);
+  if (raw === null) return { status: 'empty', raw: null, version: null };
+
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    console.error('Не удалось разобрать данные, сохраняю повреждённую копию', error);
+    backupCorrupt(raw);
+    return { status: 'corrupt', raw, version: null };
+  }
+
+  const hasVersion = isPlainObject(parsed)
+    && Object.prototype.hasOwnProperty.call(parsed, 'schemaVersion');
+  const version = hasVersion ? parsed.schemaVersion : null;
+
+  // Версия выше текущей — данные новее приложения. Проверка идёт до миграции.
+  if (Number.isInteger(version) && version > SCHEMA_VERSION) {
+    return { status: 'forward', raw, version };
+  }
+
+  // Версия указана, но не целым числом: такой файл не мог создать сам трекер.
+  if (hasVersion && !Number.isInteger(version)) {
+    console.error('Некорректный номер версии схемы данных');
+    backupCorrupt(raw);
+    return { status: 'corrupt', raw, version: null };
+  }
+
+  try {
     const migrated = migrate(parsed);
     validateState(migrated);
-    return migrated;
+    return { status: 'ok', state: migrated, raw, version: migrated.schemaVersion };
   } catch (error) {
-    console.error('Не удалось прочитать данные, сохраняю повреждённую копию', error);
+    console.error('Данные не прошли проверку, сохраняю повреждённую копию', error);
     backupCorrupt(raw);
-    return null;
+    return { status: 'corrupt', raw, version: null };
   }
 }
 
@@ -485,18 +528,25 @@ export function saveState(state) {
   }
 }
 
+/**
+ * Стартовое чтение. Seed сеется только при отсутствии ключа: `forward` и
+ * `corrupt` не перезаписываются и открывают безопасный режим.
+ * На `ok` миграция фиксируется записью, чтобы не выполнять её при каждом старте.
+ */
 export function loadState() {
-  const stored = readState();
-  if (stored) {
-    // readState() уже привёл данные к текущей схеме; фиксируем миграцию,
-    // чтобы при следующем запуске не выполнять её повторно.
-    saveState(stored);
-    return stored;
+  const boot = readState();
+
+  if (boot.status === 'ok') {
+    saveState(boot.state);
+    return boot;
   }
 
+  if (boot.status !== 'empty') return boot;
+
   const seeded = createSeedState();
+  // Сбой записи не блокирует старт: приложение работает на состоянии в памяти.
   saveState(seeded);
-  return seeded;
+  return { status: 'empty', state: seeded, raw: null, version: seeded.schemaVersion };
 }
 
 /**
@@ -536,33 +586,35 @@ export function markExported(date = new Date()) {
   return writeMeta({ lastExportAt: date.toISOString() });
 }
 
-export function downloadState(state) {
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+function downloadText(text, fileName) {
+  const blob = new Blob([text], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `finance-${todayISO()}.json`;
+  link.download = fileName;
   document.body.append(link);
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+export function downloadState(state) {
+  downloadText(JSON.stringify(state, null, 2), `finance-${todayISO()}.json`);
+}
+
 /**
  * На Android открывает системное меню «Поделиться» с JSON-файлом.
  * Если файлы не поддерживаются, скачивает копию обычным способом.
+ * Отмена системного диалога — 'cancelled', без тоста и без даты копии.
  */
-export async function shareState(state) {
-  const fileName = `finance-${todayISO()}.json`;
-  const json = JSON.stringify(state, null, 2);
-
+async function shareText(text, fileName, title) {
   if (typeof File === 'function' && typeof navigator.share === 'function') {
     try {
-      const file = new File([json], fileName, { type: 'application/json' });
+      const file = new File([text], fileName, { type: 'application/json' });
       const canShare = typeof navigator.canShare !== 'function'
         || navigator.canShare({ files: [file] });
       if (canShare) {
-        await navigator.share({ files: [file], title: 'Резервная копия финансов' });
+        await navigator.share({ files: [file], title });
         return 'shared';
       }
     } catch (error) {
@@ -571,8 +623,60 @@ export async function shareState(state) {
     }
   }
 
-  downloadState(state);
+  downloadText(text, fileName);
   return 'downloaded';
+}
+
+export async function shareState(state) {
+  return shareText(
+    JSON.stringify(state, null, 2),
+    `finance-${todayISO()}.json`,
+    'Резервная копия финансов',
+  );
+}
+
+/**
+ * Выгрузка исходного текста из localStorage — без разбора и миграции.
+ * В safe mode это единственный способ не потерять копию более новой версии.
+ * @returns {Promise<'shared' | 'downloaded' | 'cancelled' | 'unavailable'>}
+ */
+export async function shareRaw(raw) {
+  if (typeof raw !== 'string') return 'unavailable';
+  return shareText(raw, `finance-raw-${todayISO()}.json`, 'Исходные данные финансов');
+}
+
+export function hasPreV4Copy() {
+  try {
+    return localStorage.getItem(PRE_V4_KEY) !== null;
+  } catch {
+    return false;
+  }
+}
+
+export function readPreV4Raw() {
+  try {
+    return localStorage.getItem(PRE_V4_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Разбирает и полностью проверяет текст копии до любой записи в хранилище. */
+export function parseImportText(text) {
+  if (typeof text !== 'string' || !text.trim()) {
+    fail('INVALID_STATE', 'Файл пуст.');
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    fail('PARSE_ERROR', 'Файл не является корректным JSON.', error);
+  }
+
+  const migrated = migrate(parsed);
+  validateState(migrated);
+  return migrated;
 }
 
 export async function parseImportFile(file) {
@@ -590,14 +694,5 @@ export async function parseImportFile(file) {
     fail('PARSE_ERROR', 'Не удалось прочитать файл.', error);
   }
 
-  let parsed;
-  try {
-    parsed = JSON.parse(text);
-  } catch (error) {
-    fail('PARSE_ERROR', 'Файл не является корректным JSON.', error);
-  }
-
-  const migrated = migrate(parsed);
-  validateState(migrated);
-  return migrated;
+  return parseImportText(text);
 }

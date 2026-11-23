@@ -20,11 +20,13 @@ import { createTransactionSheet } from './components/transactionSheet.js';
 import { createPlannedPaymentSheet } from './components/plannedPaymentSheet.js';
 import { createReports } from './screens/reports.js';
 import { createSettings } from './screens/settings.js';
+import { createSafeMode } from './screens/safeMode.js';
 
 const darkMedia = window.matchMedia('(prefers-color-scheme: dark)');
-const store = createStore(storage.loadState());
 
+let store = null;
 let router = null;
+let safeMode = null;
 let toastTimer = 0;
 
 function toast(message) {
@@ -36,9 +38,10 @@ function toast(message) {
   toastTimer = setTimeout(() => node.classList.remove('is-visible'), 2600);
 }
 
-function applyTheme() {
-  const theme = store.getState().settings.theme;
-  const resolved = theme === 'system' ? (darkMedia.matches ? 'dark' : 'light') : theme;
+/** В safe mode store нет, поэтому тема там всегда системная. */
+function applyTheme(theme) {
+  const preferred = theme ?? (store ? store.getState().settings.theme : 'system');
+  const resolved = preferred === 'system' ? (darkMedia.matches ? 'dark' : 'light') : preferred;
   document.documentElement.dataset.theme = resolved;
 
   const meta = document.querySelector('meta[name="theme-color"]');
@@ -308,63 +311,185 @@ const app = {
     return store.getState();
   },
   actions,
-  navigate: (path) => router.navigate(path),
-  back: () => router.back(),
+  navigate: (path) => router?.navigate(path),
+  back: () => router?.back(),
   toast,
   getBackupMeta: () => storage.readMeta(),
 };
 
-const dashboard = createDashboard(app);
-const transactions = createTransactions(app);
-app.transactions = transactions;
+/**
+ * Обычный режим. Вызывается один раз: при старте или после успешного
+ * восстановления. store и роутер появляются только здесь.
+ */
+function startApp(initialState) {
+  if (store) return;
 
-const calendar = createCalendar(app);
-app.calendar = calendar;
+  store = createStore(initialState);
 
-const screens = {
-  dashboard,
-  transactions,
-  calendar,
-  reports: createReports(app),
-  settings: createSettings(app),
-};
+  const dashboard = createDashboard(app);
+  const transactions = createTransactions(app);
+  app.transactions = transactions;
 
-const transactionSheet = createTransactionSheet(app, { dashboard, transactions });
-const plannedPaymentSheet = createPlannedPaymentSheet(app, { calendar });
-router = createRouter({
-  screens,
-  overlays: {
-    transaction: transactionSheet,
-    plannedPayment: plannedPaymentSheet,
-  },
-});
+  const calendar = createCalendar(app);
+  app.calendar = calendar;
 
-store.subscribe(() => router.refresh());
+  const screens = {
+    dashboard,
+    transactions,
+    calendar,
+    reports: createReports(app),
+    settings: createSettings(app),
+  };
+
+  const transactionSheet = createTransactionSheet(app, { dashboard, transactions });
+  const plannedPaymentSheet = createPlannedPaymentSheet(app, { calendar });
+  router = createRouter({
+    screens,
+    overlays: {
+      transaction: transactionSheet,
+      plannedPayment: plannedPaymentSheet,
+    },
+  });
+
+  store.subscribe(() => router.refresh());
+
+  document.getElementById('safe-mode')?.setAttribute('hidden', '');
+  document.querySelector('.app-shell')?.removeAttribute('hidden');
+  document.querySelector('.tabbar')?.removeAttribute('hidden');
+
+  applyTheme();
+  router.start();
+}
+
+/**
+ * Восстановление: временный store существует только на момент записи и
+ * сохраняет данные первыми (replace(persist)), затем поднимает обычный режим.
+ */
+function recover(next) {
+  const temporary = createStore(next);
+  const result = temporary.replace(next, { persist: true });
+  if (!result.ok) return result;
+
+  startApp(temporary.getState());
+  return { ok: true };
+}
+
+async function recoverFromFile(file) {
+  const next = await storage.parseImportFile(file);
+  next.updatedAt = new Date().toISOString();
+  return recover(next);
+}
+
+async function recoverFromRaw() {
+  // Копию перечитываем в момент действия: снимок экрана мог устареть.
+  const raw = storage.readPreV4Raw();
+  if (typeof raw !== 'string') {
+    throw new storage.StorageError('INVALID_STATE', 'Копия до обновления не найдена.');
+  }
+  const next = storage.parseImportText(raw);
+  next.updatedAt = new Date().toISOString();
+  return recover(next);
+}
+
+async function exportRaw() {
+  // Исходные данные тоже берём актуальные, а не снимок старта.
+  const current = storage.readState();
+  if (typeof current.raw !== 'string') return 'unavailable';
+  return storage.shareRaw(current.raw);
+}
+
+function resetFromSafeMode() {
+  const seeded = createSeedState();
+  const temporary = createStore(seeded);
+  const result = temporary.replace(seeded, { persist: true });
+  if (!result.ok) return result;
+
+  storage.clearMeta();
+  startApp(temporary.getState());
+  return { ok: true };
+}
+
+function startSafeMode(boot) {
+  // Устаревшая оболочка из кеша могла не содержать #safe-mode: без экрана
+  // пользователь остался бы с пустой страницей и без пути восстановления.
+  let root = document.getElementById('safe-mode');
+  if (!root) {
+    root = document.createElement('main');
+    root.className = 'safe-mode';
+    root.id = 'safe-mode';
+    // Старый CSS в кеше не знает .safe-mode: без этих свойств экран
+    // обрезался бы body с overflow: hidden. 100vh — запасной вариант.
+    root.style.height = '100vh';
+    root.style.height = '100dvh';
+    root.style.overflowY = 'auto';
+    root.style.padding = '16px';
+    document.body.append(root);
+  }
+
+  safeMode = createSafeMode({
+    status: boot.status,
+    version: boot.version ?? null,
+    raw: typeof boot.raw === 'string' ? boot.raw : null,
+    preV4Raw: storage.readPreV4Raw(),
+    recoverFromFile,
+    recoverFromRaw,
+    exportRaw,
+    reset: resetFromSafeMode,
+    toast,
+  });
+
+  safeMode.mount(root);
+
+  // Шелл скрываем только после того, как безопасный экран отрисован.
+  document.querySelector('.app-shell')?.setAttribute('hidden', '');
+  document.querySelector('.tabbar')?.setAttribute('hidden', '');
+  applyTheme('system');
+}
 
 window.addEventListener('storage', (event) => {
   if (event.key !== storage.KEY) return;
+
   const next = storage.readState();
-  // Ревизия точнее даты: две записи в одну миллисекунду не должны
-  // считаться одной и той же.
-  if (!next || next.rev === store.getState().rev) return;
-  store.replace(next);
-  applyTheme();
-  toast('Данные обновлены в другой вкладке');
+
+  if (store) {
+    // В обычном режиме чужую несовместимую запись не подменяем: перезагрузка
+    // сама откроет безопасный экран.
+    if (next.status === 'forward' || next.status === 'corrupt') {
+      toast('Данные в другой вкладке изменились — перезагрузите страницу');
+      return;
+    }
+    if (next.status !== 'ok') return;
+    // Ревизия точнее даты: две записи в одну миллисекунду не должны
+    // считаться одной и той же.
+    if (next.state.rev === store.getState().rev) return;
+    store.replace(next.state);
+    applyTheme();
+    toast('Данные обновлены в другой вкладке');
+    return;
+  }
+
+  // Safe mode: состояние не подменяем, только сообщаем о внешней записи.
+  safeMode?.showStorageBanner();
 });
 
 darkMedia.addEventListener('change', () => {
-  if (store.getState().settings.theme === 'system') applyTheme();
+  if (!store || store.getState().settings.theme === 'system') applyTheme();
 });
 
 document.getElementById('back-btn')?.addEventListener('click', () => {
-  router.back();
+  router?.back();
 });
 
 document.getElementById('settings-btn')?.addEventListener('click', () => {
-  router.navigate('/settings');
+  router?.navigate('/settings');
 });
 
-applyTheme();
 ensurePersistentStorage();
 registerServiceWorker();
-router.start();
+
+const boot = storage.loadState();
+if (boot.status === 'ok' || boot.status === 'empty') {
+  startApp(boot.state);
+} else {
+  startSafeMode(boot);
+}
