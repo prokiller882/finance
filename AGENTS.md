@@ -154,3 +154,13 @@
   пересчитываются баланс и отчёты за всю историю.
 
 <!-- /bmad:context -->
+
+## Git-доступ (вне bmad)
+
+- `git push` работает из WSL без токена в чате: `~/.gitconfig` → helper
+  `~/.local/bin/git-credential-manager-wsl` → Windows Credential Manager
+  (запись `git:https://github.com`). Токенов в репозитории и в WSL нет.
+- Токен не запрашивать у пользователя. Если пуш просит логин — токен истёк,
+  авторизуйтесь в окне GCM один раз; чинить надо helper, а не вставлять PAT.
+- MCP не заменяет пуш: GitHub MCP — только API (issues/PR), не `git push`.
+
